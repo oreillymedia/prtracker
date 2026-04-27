@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 final class StubURLProtocol: URLProtocol {
     struct Stub {
@@ -11,6 +12,46 @@ final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var responses: [String: Stub] = [:]
     /// Captured requests (for assertions)
     nonisolated(unsafe) static var captured: [URLRequest] = []
+    /// Async-safe mutex that does NOT suffer from actor reentrancy: a Token is
+    /// granted to one waiter at a time, and only released by an explicit `release()`
+    /// call. Used to serialize tests across suites that share the static stub state.
+    actor StubLock {
+        static let shared = StubLock()
+        private var held = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func acquire() async {
+            if !held {
+                held = true
+                return
+            }
+            await withCheckedContinuation { waiters.append($0) }
+        }
+        func release() {
+            if let next = waiters.first {
+                waiters.removeFirst()
+                next.resume()  // hands lock directly to next waiter without flipping `held`
+            } else {
+                held = false
+            }
+        }
+    }
+
+    /// Run a test body with exclusive access to the static stub state.
+    /// All tests that touch `StubURLProtocol` MUST wrap their body in this.
+    static func withExclusiveStubs<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
+        await StubLock.shared.acquire()
+        do {
+            responses.removeAll()
+            captured.removeAll()
+            let result = try await body()
+            await StubLock.shared.release()
+            return result
+        } catch {
+            await StubLock.shared.release()
+            throw error
+        }
+    }
 
     static func reset() {
         responses.removeAll()
