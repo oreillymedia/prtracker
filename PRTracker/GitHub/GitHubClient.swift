@@ -53,3 +53,27 @@ actor GitHubClient {
         try await send(Endpoints.user, as: UserDTO.self)
     }
 }
+
+extension GitHubClient {
+    func listOpenPRs(repo: RepoRef) async throws -> [PullRequestDTO] {
+        try await send(Endpoints.pulls(repo, state: "open", perPage: 50), as: [PullRequestDTO].self)
+    }
+    func listRecentlyMerged(repo: RepoRef, limit: Int) async throws -> [PullRequestDTO] {
+        try await send(Endpoints.pulls(repo, state: "closed", perPage: limit), as: [PullRequestDTO].self)
+    }
+    func checkRuns(repo: RepoRef, ref: String) async throws -> CheckRunsResponseDTO {
+        try await send(Endpoints.checkRuns(repo, ref: ref), as: CheckRunsResponseDTO.self)
+    }
+    func participatingNotifications() async throws -> [NotificationDTO] {
+        try await send(Endpoints.notificationsParticipating, as: [NotificationDTO].self)
+    }
+    func timeline(repo: RepoRef, number: Int) async throws -> [TimelineItemDTO] {
+        try await send(Endpoints.timeline(repo, number: number), as: [TimelineItemDTO].self)
+    }
+    func reviews(repo: RepoRef, number: Int) async throws -> [ReviewDTO] {
+        try await send(Endpoints.reviews(repo, number: number), as: [ReviewDTO].self)
+    }
+    func issueComments(repo: RepoRef, number: Int) async throws -> [CommentDTO] {
+        try await send(Endpoints.issueComments(repo, number: number), as: [CommentDTO].self)
+    }
+}

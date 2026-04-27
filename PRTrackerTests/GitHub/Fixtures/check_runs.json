@@ -1,0 +1,4 @@
+{"total_count": 12, "check_runs": [
+  {"name": "Build", "status": "completed", "conclusion": "success", "started_at": null, "completed_at": null},
+  {"name": "ASC: TestFlight upload", "status": "in_progress", "conclusion": null, "started_at": null, "completed_at": null}
+]}
