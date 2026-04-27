@@ -9,6 +9,7 @@ struct PRTrackerApp: App {
     let client: GitHubClient
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
+    let badge = MenuBarBadge()
 
     init() {
         let schema = Schema([
@@ -37,5 +38,14 @@ struct PRTrackerApp: App {
         }
         .modelContainer(container)
         .windowResizability(.contentMinSize)
+
+        MenuBarExtra {
+            MenuBarContentView(coordinator: coordinator, badge: badge)
+                .environment(appState)
+                .modelContainer(container)
+        } label: {
+            MenuBarLabel(badge: badge)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
