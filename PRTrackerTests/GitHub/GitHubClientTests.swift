@@ -82,3 +82,32 @@ extension GitHubClientTests {
         } catch { Issue.record("wrong type: \(error)") }
     }
 }
+
+extension GitHubClientTests {
+    @Test func notModifiedThrowsNotModified() async {
+        StubURLProtocol.reset()
+        StubURLProtocol.register(url: "https://api.github.com/user", status: 304, body: Data())
+        do {
+            _ = try await makeClient().validate()
+            Issue.record("expected throw")
+        } catch let e as GitHubError {
+            #expect(e == .notModified)
+        } catch { Issue.record("wrong error: \(error)") }
+    }
+
+    @Test func sendsIfNoneMatchWhenEtagProvided() async throws {
+        StubURLProtocol.reset()
+        StubURLProtocol.register(
+            url: "https://api.github.com/user", status: 200,
+            headers: ["ETag": "W/\"abc\""], body: fixture("user"))
+        let client = GitHubClient(
+            session: URLSession(configuration: .stubbed),
+            tokenProvider: { "ghp_test" },
+            etagProvider: { _ in "W/\"abc\"" },
+            etagSink: { _,_ in }
+        )
+        _ = try await client.validate()
+        let lastReq = StubURLProtocol.captured.last!
+        #expect(lastReq.value(forHTTPHeaderField: "If-None-Match") == "W/\"abc\"")
+    }
+}

@@ -3,10 +3,14 @@ import Foundation
 actor GitHubClient {
     private let session: URLSession
     private let tokenProvider: @Sendable () -> String?
+    private let etagProvider: @Sendable (URL) -> String?
+    private let etagSink: @Sendable (URL, String?) -> Void
 
-    init(session: URLSession, tokenProvider: @escaping @Sendable () -> String?) {
+    init(session: URLSession, tokenProvider: @escaping @Sendable () -> String?, etagProvider: @escaping @Sendable (URL) -> String? = { _ in nil }, etagSink: @escaping @Sendable (URL, String?) -> Void = { _, _ in }) {
         self.session = session
         self.tokenProvider = tokenProvider
+        self.etagProvider = etagProvider
+        self.etagSink = etagSink
     }
 
     private static let isoDecoder: JSONDecoder = {
@@ -23,6 +27,9 @@ actor GitHubClient {
         if let token = tokenProvider() {
             r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        if let etag = etagProvider(url) {
+            r.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
         return r
     }
 
@@ -33,7 +40,9 @@ actor GitHubClient {
         catch { throw GitHubError.network(message: error.localizedDescription) }
         guard let http = resp as? HTTPURLResponse else { throw GitHubError.network(message: "non-HTTP response") }
         switch http.statusCode {
+        case 304: throw GitHubError.notModified
         case 200..<300:
+            etagSink(url, http.value(forHTTPHeaderField: "ETag"))
             do { return try Self.isoDecoder.decode(T.self, from: data) }
             catch { throw GitHubError.decoding(message: String(describing: error)) }
         case 401: throw GitHubError.unauthorized
