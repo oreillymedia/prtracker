@@ -45,7 +45,6 @@ enum Classifier {
         let amRequestedReviewer = pr.requestedReviewerLogins.contains(viewer)
         let myReviewState = pr.reviewerStates.first(where: { $0.0 == viewer })?.1
         let didReview = myReviewState != nil
-        let didComment = pr.commenterLogins.contains(viewer)
         let mentioned = mentions.contains(pr.id)
 
         // attention precedence: my PR with problems
@@ -60,10 +59,9 @@ enum Classifier {
         // mine
         if isAuthor { return .mine }
 
-        // involved: I've reviewed or commented
-        if didReview || didComment { return .involved }
-
-        return nil
+        // Any open PR by someone else falls into "Others' PRs" unless a more
+        // specific bucket above fired.
+        return .involved
     }
 }
 

@@ -56,6 +56,13 @@ import Foundation
         #expect(Classifier.section(for: p, viewer: me, mentions: [], now: now) == nil)
     }
 
+    @Test func untouchedOpenPRByOthersIsInvolved() {
+        // Open PR by someone else; I'm not a requested reviewer, haven't reviewed
+        // or commented, not mentioned. Should fall into "Others' PRs" by default.
+        let p = pr(author: "iris")
+        #expect(Classifier.section(for: p, viewer: me, mentions: [], now: now) == .involved)
+    }
+
     @Test func attentionWinsOverMine() {
         let p = pr(author: me, ciFail: 1)
         #expect(Classifier.section(for: p, viewer: me, mentions: [], now: now) == .attention)
