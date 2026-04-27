@@ -3,7 +3,11 @@ import SwiftData
 
 struct RootView: View {
     @Environment(\.modelContext) private var ctx
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openSettings) private var openSettings
     @Query private var viewerStates: [ViewerState]
+
+    @State private var lastActiveTriggerAt: Date = .distantPast
 
     let keychain: Keychain
     let client: GitHubClient
@@ -13,12 +17,21 @@ struct RootView: View {
         let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && (viewerStates.first?.activeRepoID != nil)
         Group {
             if signedIn {
-                MainView(coordinator: coordinator, onOpenSettings: { /* Settings scene wires this in Task 27 */ })
+                MainView(coordinator: coordinator, onOpenSettings: { openSettings() })
                     .task { coordinator.start() }
             } else {
                 OnboardingView(keychain: keychain, client: client, onReady: {
                     coordinator.start()
                 })
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                let now = Date.now
+                if now.timeIntervalSince(lastActiveTriggerAt) > 30 {
+                    lastActiveTriggerAt = now
+                    Task { await coordinator.refresh() }
+                }
             }
         }
     }
