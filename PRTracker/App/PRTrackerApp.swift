@@ -47,5 +47,11 @@ struct PRTrackerApp: App {
             MenuBarLabel(badge: badge)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView(keychain: keychain, client: client, coordinator: coordinator)
+                .modelContainer(container)
+                .environment(appState)
+        }
     }
 }
