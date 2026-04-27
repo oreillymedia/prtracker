@@ -47,7 +47,7 @@ struct MainView: View {
                 onOpenSettings: onOpenSettings)
         } detail: {
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                Text("Detail for #\(pr.number)") // replaced in Phase 9
+                PRDetailView(pr: pr, viewer: viewerStates.first?.viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
             } else {
                 FeedView(coordinator: coordinator)
             }

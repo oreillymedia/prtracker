@@ -4,8 +4,8 @@ import AppKit
 
 @Observable
 final class SyncCoordinator {
-    private let client: GitHubClient
-    private let syncActor: SyncActor
+    let client: GitHubClient
+    let syncActor: SyncActor
     private let modelContainer: ModelContainer
 
     var isSyncing: Bool = false
@@ -106,6 +106,11 @@ final class SyncCoordinator {
             self?.start()
         }
     }
+}
+
+extension SyncCoordinator {
+    var clientForView: GitHubClient { client }
+    var syncActorForView: SyncActor { syncActor }
 }
 
 actor AsyncSemaphore {
