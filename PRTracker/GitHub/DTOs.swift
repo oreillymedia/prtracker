@@ -73,6 +73,48 @@ struct TimelineItemDTO: Decodable {
     let body: String?
     let sha: String?
     let state: String?                // for review events
+    let submitted_at: Date?           // present on "reviewed" events
+    let author: GitAuthorDTO?         // present on "committed" events
+    let committer: GitAuthorDTO?      // present on "committed" events
+    let user: UserDTO?                // present on "reviewed" events instead of `actor`
+
+    init(event: String, id: Int? = nil, node_id: String? = nil, actor: UserDTO? = nil,
+         created_at: Date? = nil, body: String? = nil, sha: String? = nil, state: String? = nil,
+         submitted_at: Date? = nil, author: GitAuthorDTO? = nil,
+         committer: GitAuthorDTO? = nil, user: UserDTO? = nil) {
+        self.event = event
+        self.id = id
+        self.node_id = node_id
+        self.actor = actor
+        self.created_at = created_at
+        self.body = body
+        self.sha = sha
+        self.state = state
+        self.submitted_at = submitted_at
+        self.author = author
+        self.committer = committer
+        self.user = user
+    }
+
+    /// The effective timestamp for this event, regardless of which field GitHub
+    /// chose to put it in for the event type.
+    var effectiveDate: Date? {
+        created_at
+            ?? submitted_at
+            ?? committer?.date
+            ?? author?.date
+    }
+
+    /// The effective acting user, regardless of which field GitHub used.
+    var effectiveActor: UserDTO? {
+        actor ?? user
+    }
+}
+
+struct GitAuthorDTO: Decodable, Equatable {
+    let name: String?
+    let email: String?
+    let date: Date?
 }
 
 struct NotificationDTO: Decodable {
