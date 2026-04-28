@@ -10,7 +10,7 @@ struct DetailRightRail: View {
             section("Status") {
                 row("Review", pill: pr.reviewState?.rawValue ?? "—", tint: reviewTint)
                 row("CI", pill: ciSummary, tint: ciTint)
-                row("Mergeable", pill: pr.mergeable.rawValue, tint: mergeTint)
+                row("Mergeable", pill: mergeableLabel, tint: mergeTint)
             }
             section("CI checks") {
                 ForEach(pr.ciChecks) { run in
@@ -48,9 +48,14 @@ struct DetailRightRail: View {
                 }.font(.system(size: 12))
             }
             Spacer()
-            Button(pr.isUnread ? "Mark all as seen" : "Mark all as unseen") {
-                pr.isUnread ? onMarkAllSeen() : onMarkAllUnseen()
-            }.buttonStyle(.bordered).frame(maxWidth: .infinity)
+            HStack(spacing: 6) {
+                Button("Mark all seen") { onMarkAllSeen() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                Button("Mark all unseen") { onMarkAllUnseen() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .padding(18)
         .frame(width: 260)
@@ -89,8 +94,37 @@ struct DetailRightRail: View {
 
     private var ciTint: Color { pr.ciFail > 0 ? Tokens.changes : (pr.ciRunning > 0 ? Tokens.pending : Tokens.approved) }
 
+    /// Mergeable display reflects the PR's overall state for closed/merged
+    /// PRs (where GitHub's mergeable_state is meaningless), and the actual
+    /// mergeable status for open ones.
+    private var mergeableLabel: String {
+        switch pr.state {
+        case .merged: "Merged"
+        case .closed: "Closed"
+        case .draft:  "Draft"
+        case .open:
+            switch pr.mergeable {
+            case .clean:     "Clean"
+            case .conflicts: "Conflicts"
+            case .blocked:   "Blocked"
+            case .unknown:   "Checking…"
+            }
+        }
+    }
+
     private var mergeTint: Color {
-        switch pr.mergeable { case .clean: Tokens.approved; case .conflicts, .blocked: Tokens.changes; case .unknown: Tokens.textFaint }
+        switch pr.state {
+        case .merged: return Lane.recent.color   // violet — same lane as "Recently merged"
+        case .closed: return Tokens.textFaint
+        case .draft:  return Tokens.textMuted
+        case .open:
+            switch pr.mergeable {
+            case .clean:     return Tokens.approved
+            case .conflicts: return Tokens.changes
+            case .blocked:   return Tokens.changes
+            case .unknown:   return Tokens.textFaint
+            }
+        }
     }
 
     private func ciIcon(_ s: CIState) -> String {
