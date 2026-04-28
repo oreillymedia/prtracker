@@ -65,6 +65,10 @@ struct MainView: View {
                 FeedView(coordinator: coordinator)
             }
         }
+        .onChange(of: appState.activeSection) { _, _ in
+            // Switching sections in the sidebar pops out of any open PR detail.
+            appState.selectedPRID = nil
+        }
     }
 
     private func counts(viewerLogin: String) -> [Section: Int] {
