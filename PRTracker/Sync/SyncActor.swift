@@ -173,6 +173,20 @@ actor SyncActor {
         try ctx.save()
     }
 
+    /// Patches diffstat-only fields on a PR from a detail-endpoint fetch.
+    /// Other fields are not touched (they're owned by the list-fetch upsert).
+    func updatePRStatistics(prID: String, dto: PullRequestDTO) throws {
+        let ctx = modelContext
+        guard let pr = prByID(prID, ctx: ctx) else { return }
+        pr.additions = dto.additions ?? pr.additions
+        pr.deletions = dto.deletions ?? pr.deletions
+        pr.changedFiles = dto.changed_files ?? pr.changedFiles
+        if let ms = dto.mergeable_state {
+            pr.mergeable = Mergeable(rawValue: ms.uppercased()) ?? pr.mergeable
+        }
+        try ctx.save()
+    }
+
     func setSeen(eventID: String, isSeen: Bool) throws {
         let ctx = modelContext
         let target = eventID

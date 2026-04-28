@@ -32,6 +32,7 @@ enum Endpoints {
         c.queryItems = [URLQueryItem(name: "per_page", value: "100")]
         return c.url!
     }
+    static func pullRequest(_ r: RepoRef, number: Int) -> URL { base.appending(path: "/repos/\(r.slug)/pulls/\(number)") }
     static func reviews(_ r: RepoRef, number: Int) -> URL { base.appending(path: "/repos/\(r.slug)/pulls/\(number)/reviews") }
     static func issueComments(_ r: RepoRef, number: Int) -> URL { base.appending(path: "/repos/\(r.slug)/issues/\(number)/comments") }
     static func repo(_ r: RepoRef) -> URL { base.appending(path: "/repos/\(r.slug)") }

@@ -76,6 +76,11 @@ extension GitHubClient {
     func participatingNotifications() async throws -> [NotificationDTO] {
         try await send(Endpoints.notificationsParticipating, as: [NotificationDTO].self)
     }
+    /// Fetches a single PR's full detail, which includes diffstat fields
+    /// (additions/deletions/changed_files) that are not in the list endpoint.
+    func pullRequestDetail(repo: RepoRef, number: Int) async throws -> PullRequestDTO {
+        try await send(Endpoints.pullRequest(repo, number: number), as: PullRequestDTO.self)
+    }
     func timeline(repo: RepoRef, number: Int) async throws -> [TimelineItemDTO] {
         try await send(Endpoints.timeline(repo, number: number), as: [TimelineItemDTO].self)
     }

@@ -122,8 +122,10 @@ struct PRDetailView: View {
             async let t = client.timeline(repo: ref, number: number)
             async let r = client.reviews(repo: ref, number: number)
             async let c = client.issueComments(repo: ref, number: number)
-            let (tItems, _, _) = try await (t, r, c)
+            async let d = client.pullRequestDetail(repo: ref, number: number)
+            let (tItems, _, _, detail) = try await (t, r, c, d)
             try await syncActor.upsertTimeline(prID: prID, items: tItems)
+            try await syncActor.updatePRStatistics(prID: prID, dto: detail)
             loadError = nil
         } catch let e as GitHubError {
             loadError = e
