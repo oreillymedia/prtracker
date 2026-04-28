@@ -41,8 +41,24 @@ struct PRDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Button { appState.selectedPRID = nil } label: {
-                    SwiftUI.Label("Feed", systemImage: "chevron.left")
-                }.buttonStyle(.borderless)
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 10).weight(.semibold))
+                            .foregroundStyle(Tokens.textMuted)
+                        Text("Feed")
+                            .font(.system(size: 12).weight(.medium))
+                            .foregroundStyle(Tokens.text)
+                    }
+                    .padding(.leading, 6)
+                    .padding(.trailing, 10)
+                    .frame(height: 26)
+                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Tokens.border, lineWidth: 0.5)
+                    )
+                }
+                .buttonStyle(.plain)
                 Text("\(pr.repo.id) / #\(pr.number)").foregroundStyle(Tokens.textMuted)
                 Spacer()
                 Link("Open", destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!)
