@@ -61,9 +61,16 @@ struct PRDetailView: View {
                 .buttonStyle(.plain)
                 Text("\(pr.repo.id) / #\(pr.number)").foregroundStyle(Tokens.textMuted)
                 Spacer()
-                Link("Open", destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Tokens.accentBg, in: Capsule())
+                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
+                    HStack(spacing: 4) {
+                        Image(systemName: stateIcon).font(.system(size: 11).weight(.semibold))
+                        Text(stateLabel).font(.system(size: 11).weight(.semibold))
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(stateColor.opacity(0.10), in: Capsule())
+                    .foregroundStyle(stateColor)
+                }
+                .buttonStyle(.plain)
             }
             Text(pr.title).font(.system(size: 18).weight(.bold)).tracking(-0.2)
             HStack(spacing: 6) {
@@ -79,6 +86,32 @@ struct PRDetailView: View {
         .padding(24)
         .background(Tokens.panelBg)
         .overlay(Rectangle().fill(Tokens.border).frame(height: 0.5), alignment: .bottom)
+    }
+
+    // State pill at top right of header (Open / Merged / Closed / Draft)
+    private var stateLabel: String {
+        switch pr.state {
+        case .open:   "Open"
+        case .merged: "Merged"
+        case .closed: "Closed"
+        case .draft:  "Draft"
+        }
+    }
+    private var stateIcon: String {
+        switch pr.state {
+        case .open:   "arrow.triangle.pull"
+        case .merged: "arrow.triangle.merge"
+        case .closed: "xmark.circle"
+        case .draft:  "circle.dashed"
+        }
+    }
+    private var stateColor: Color {
+        switch pr.state {
+        case .open:   Tokens.approved
+        case .merged: Lane.recent.color
+        case .closed: Tokens.changes
+        case .draft:  Tokens.textMuted
+        }
     }
 
     private func loadTimeline() async {

@@ -77,11 +77,13 @@ struct TimelineItemDTO: Decodable {
     let author: GitAuthorDTO?         // present on "committed" events
     let committer: GitAuthorDTO?      // present on "committed" events
     let user: UserDTO?                // present on "reviewed" events instead of `actor`
+    let message: String?              // commit message on "committed" events
 
     init(event: String, id: Int? = nil, node_id: String? = nil, actor: UserDTO? = nil,
          created_at: Date? = nil, body: String? = nil, sha: String? = nil, state: String? = nil,
          submitted_at: Date? = nil, author: GitAuthorDTO? = nil,
-         committer: GitAuthorDTO? = nil, user: UserDTO? = nil) {
+         committer: GitAuthorDTO? = nil, user: UserDTO? = nil,
+         message: String? = nil) {
         self.event = event
         self.id = id
         self.node_id = node_id
@@ -94,6 +96,7 @@ struct TimelineItemDTO: Decodable {
         self.author = author
         self.committer = committer
         self.user = user
+        self.message = message
     }
 
     /// The effective timestamp for this event, regardless of which field GitHub

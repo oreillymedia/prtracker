@@ -66,7 +66,7 @@ struct DetailRightRail: View {
     @ViewBuilder
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).sectionHeader().foregroundStyle(Tokens.textMuted)
+            Text(title).railSectionHeader().foregroundStyle(Tokens.textFaint)
             content()
         }
     }

@@ -149,8 +149,11 @@ actor SyncActor {
             let actorUser = dto.effectiveActor.map { upsertUser($0, ctx: ctx) }
             let revState = dto.state.flatMap { ReviewState(rawValue: $0) }
             let effectiveAt = dto.effectiveDate
+            // Commits put the commit message in `message`, not `body`. Pull
+            // whichever is non-nil so commit rows can show the message.
+            let effectiveBody = dto.body ?? dto.message
             if let e = byID[id] {
-                e.body = dto.body ?? e.body
+                e.body = effectiveBody ?? e.body
                 e.actor = actorUser ?? e.actor
                 if let at = effectiveAt { e.at = at }
                 if let s = dto.sha { e.sha = s }
@@ -160,7 +163,7 @@ actor SyncActor {
                 let e = TimelineEvent(
                     id: id, type: typ, at: effectiveAt ?? .now,
                     pullRequest: pr, actor: actorUser,
-                    body: dto.body, sha: dto.sha, reviewState: revState, isSeen: false)
+                    body: effectiveBody, sha: dto.sha, reviewState: revState, isSeen: false)
                 ctx.insert(e)
             }
         }

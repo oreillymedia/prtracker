@@ -7,6 +7,12 @@ extension View {
     func sectionHeader() -> some View {
         font(.system(size: 12.5, weight: .bold))
     }
+    /// Smaller, uppercase, faint header used in the detail-view right rail.
+    func railSectionHeader() -> some View {
+        font(.system(size: 10.5, weight: .bold))
+            .tracking(0.6)
+            .textCase(.uppercase)
+    }
     func metaText() -> some View {
         font(.system(size: 11.5, weight: .medium))
     }

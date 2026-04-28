@@ -5,28 +5,18 @@ struct TimelineEventRow: View {
     var onTap: () -> Void
     var onMarkUpToHere: () -> Void
 
+    private var hasCard: Bool {
+        (event.type == .comment || event.type == .review) && (event.body?.isEmpty == false)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle().fill(Tokens.contentBg).frame(width: 22, height: 22)
-                Circle().fill(dotColor).frame(width: 18, height: 18)
-                Image(systemName: dotIcon).foregroundStyle(.white).font(.system(size: 10).weight(.bold))
-                if !event.isSeen {
-                    Circle().stroke(Tokens.accent.opacity(0.22), lineWidth: 4)
-                        .frame(width: 22, height: 22)
-                }
-            }.padding(.leading, 4)
+            dot.padding(.leading, 4)
 
-            VStack(alignment: .leading, spacing: 4) {
-                header
-                if let body = event.body, [.comment, .review].contains(event.type) {
-                    Text(body)
-                        .font(.system(size: 12.5))
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Tokens.border, lineWidth: 0.5))
-                }
+            if hasCard {
+                cardContent
+            } else {
+                inlineContent
             }
         }
         .opacity(event.isSeen ? 0.48 : 1.0)
@@ -39,66 +29,160 @@ struct TimelineEventRow: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 6) {
-            if let actor = event.actor { Text(actor.name ?? actor.login).metaText() }
-            Text(verb).foregroundStyle(Tokens.textMuted).font(.system(size: 12))
-            if let sha = event.sha { Text(sha).monoText().padding(.horizontal, 6).padding(.vertical, 1).background(Tokens.hairline, in: Capsule()) }
-            Spacer()
-            Text(RelativeTimeFormatter.short(event.at)).microText().foregroundStyle(Tokens.textFaint)
+    // MARK: - Dot
+
+    private var dot: some View {
+        ZStack {
+            Circle().fill(Tokens.contentBg).frame(width: 22, height: 22)
+            Circle().fill(dotColor).frame(width: 18, height: 18)
+            Image(systemName: dotIcon).foregroundStyle(.white).font(.system(size: 10).weight(.bold))
+            if !event.isSeen {
+                Circle().stroke(Tokens.accent.opacity(0.22), lineWidth: 4)
+                    .frame(width: 22, height: 22)
+            }
         }
+    }
+
+    // MARK: - Card content (comment / review with body)
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                if let actor = event.actor {
+                    AvatarView(user: actor, size: 20)
+                    Text(actor.name ?? actor.login)
+                        .font(.system(size: 12).weight(.semibold))
+                        .foregroundStyle(Tokens.text)
+                }
+                if event.type == .review, let r = event.reviewState {
+                    reviewPill(r)
+                }
+                Spacer()
+                Text(RelativeTimeFormatter.short(event.at))
+                    .microText()
+                    .foregroundStyle(Tokens.textFaint)
+            }
+            if let body = event.body {
+                Text(body)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Tokens.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineSpacing(2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Tokens.border, lineWidth: 0.5))
+    }
+
+    // MARK: - Inline content (everything else)
+
+    private var inlineContent: some View {
+        HStack(spacing: 6) {
+            if let actor = event.actor {
+                AvatarView(user: actor, size: 18)
+                Text(actor.name ?? actor.login)
+                    .font(.system(size: 12).weight(.semibold))
+                    .foregroundStyle(Tokens.text)
+            }
+            Text(verb)
+                .font(.system(size: 12))
+                .foregroundStyle(Tokens.textMuted)
+            if event.type == .commit, let body = event.body, !body.isEmpty {
+                Text(firstLine(body))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Tokens.text)
+                    .lineLimit(1)
+            }
+            if let sha = event.sha, !sha.isEmpty {
+                Text(String(sha.prefix(7)))
+                    .monoText()
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Tokens.hairline, in: RoundedRectangle(cornerRadius: 3))
+                    .foregroundStyle(Tokens.textFaint)
+            }
+            Spacer()
+            Text(RelativeTimeFormatter.short(event.at))
+                .microText()
+                .foregroundStyle(Tokens.textFaint)
+        }
+        .padding(.top, 2)
+    }
+
+    // MARK: - Pills / labels / icons
+
+    private func reviewPill(_ r: ReviewState) -> some View {
+        let (text, color): (String, Color) = {
+            switch r {
+            case .approved:         ("approved",         Tokens.approved)
+            case .changesRequested: ("changes requested", Tokens.changes)
+            case .commented:        ("commented",        Tokens.commented)
+            case .pending:          ("pending",          Tokens.textFaint)
+            }
+        }()
+        return Text(text)
+            .font(.system(size: 10.5).weight(.semibold))
+            .padding(.horizontal, 7).padding(.vertical, 1.5)
+            .background(color.opacity(0.15), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    private func firstLine(_ s: String) -> String {
+        s.split(whereSeparator: \.isNewline).first.map(String.init) ?? s
     }
 
     private var verb: String {
         switch event.type {
-        case .commit: "pushed"
-        case .opened: "opened this pull request"
-        case .review: switch event.reviewState {
-            case .approved: "approved"
+        case .commit:   "pushed"
+        case .opened:   "opened this pull request"
+        case .review:
+            switch event.reviewState {
+            case .approved:         "approved"
             case .changesRequested: "requested changes"
-            case .commented: "commented on the review"
-            default: "left a review"
+            case .commented:        "commented on the review"
+            default:                "left a review"
             }
-        case .comment: "commented"
-        case .status: "status update"
-        case .merged: "merged"
-        case .closed: "closed"
+        case .comment:  "commented"
+        case .status:   "status update"
+        case .merged:   "merged"
+        case .closed:   "closed"
         case .assigned: "assigned"
-        case .labeled: "labeled"
+        case .labeled:  "labeled"
         }
     }
 
     private var dotColor: Color {
         switch event.type {
-        case .commit: Tokens.commented
-        case .opened, .merged: Tokens.approved
+        case .commit:           Tokens.commented
+        case .opened, .merged:  Tokens.approved
         case .review:
             switch event.reviewState {
-            case .approved: Tokens.approved
+            case .approved:         Tokens.approved
             case .changesRequested: Tokens.changes
-            default: Tokens.commented
+            default:                Tokens.commented
             }
-        case .comment: Tokens.accent
-        case .status: Tokens.pending
-        default: Tokens.textFaint
+        case .comment:  Tokens.accent
+        case .status:   Tokens.pending
+        default:        Tokens.textFaint
         }
     }
 
     private var dotIcon: String {
         switch event.type {
-        case .commit: "circle.dotted"
-        case .opened: "arrow.triangle.pull"
+        case .commit:   "circle.dotted"
+        case .opened:   "arrow.triangle.pull"
         case .review:
             switch event.reviewState {
-            case .approved: "checkmark"
+            case .approved:         "checkmark"
             case .changesRequested: "xmark"
-            default: "bubble.left"
+            default:                "bubble.left"
             }
-        case .comment: "bubble.left"
-        case .status: "circle.dashed"
-        case .merged: "arrow.triangle.merge"
-        case .closed: "xmark"
-        default: "tag"
+        case .comment:  "bubble.left"
+        case .status:   "circle.dashed"
+        case .merged:   "arrow.triangle.merge"
+        case .closed:   "xmark"
+        default:        "tag"
         }
     }
 }
