@@ -98,10 +98,21 @@ actor SyncActor {
         for r in dto.check_runs {
             let state: CIState = {
                 if r.status == "completed" {
+                    // GitHub conclusions: success, failure, neutral, cancelled,
+                    // skipped, timed_out, action_required, stale.
                     switch r.conclusion {
-                    case "success": return .pass
-                    case "failure", "timed_out", "cancelled": return .fail
-                    default: return .pass
+                    case "success", "neutral", "skipped":
+                        return .pass
+                    case "failure", "timed_out", "cancelled", "action_required":
+                        return .fail
+                    case "stale":
+                        // Stale results are inconclusive; treat as pending so the
+                        // user knows the run is not authoritative.
+                        return .pending
+                    default:
+                        // Unknown conclusions and `nil` for completed status are
+                        // surfaced as pending rather than silently passing.
+                        return .pending
                     }
                 }
                 if r.status == "in_progress" { return .running }

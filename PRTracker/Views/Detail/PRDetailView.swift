@@ -118,14 +118,17 @@ struct PRDetailView: View {
         let ref = RepoRef(owner: pr.repo.owner, name: pr.repo.name)
         let number = pr.number
         let prID = pr.id
+        let headSha = pr.headSha
         do {
             async let t = client.timeline(repo: ref, number: number)
             async let r = client.reviews(repo: ref, number: number)
             async let c = client.issueComments(repo: ref, number: number)
             async let d = client.pullRequestDetail(repo: ref, number: number)
-            let (tItems, _, _, detail) = try await (t, r, c, d)
+            async let ck = client.checkRuns(repo: ref, ref: headSha)
+            let (tItems, _, _, detail, checks) = try await (t, r, c, d, ck)
             try await syncActor.upsertTimeline(prID: prID, items: tItems)
             try await syncActor.updatePRStatistics(prID: prID, dto: detail)
+            try await syncActor.upsertCIChecks(prID: prID, dto: checks)
             loadError = nil
         } catch let e as GitHubError {
             loadError = e
