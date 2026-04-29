@@ -10,6 +10,7 @@ struct PRDetailView: View {
     let syncActor: SyncActor
 
     @State private var loadError: GitHubError?
+    @State private var isLoading: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,16 +62,47 @@ struct PRDetailView: View {
                 .buttonStyle(.plain)
                 Text("\(pr.repo.id) / #\(pr.number)").foregroundStyle(Tokens.textMuted)
                 Spacer()
-                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
-                    HStack(spacing: 4) {
-                        Image(systemName: stateIcon).font(.system(size: 11).weight(.semibold))
-                        Text(stateLabel).font(.system(size: 11).weight(.semibold))
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 2)
-                    .background(stateColor.opacity(0.10), in: Capsule())
-                    .foregroundStyle(stateColor)
+
+                // Refresh — re-runs the timeline / detail / CI fetch.
+                Button {
+                    Task { await loadTimeline() }
+                } label: {
+                    Image(systemName: isLoading ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
+                        .font(.system(size: 11).weight(.semibold))
+                        .foregroundStyle(Tokens.textMuted)
+                        .frame(width: 26, height: 26)
+                        .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
+                .disabled(isLoading)
+                .help("Refresh")
+
+                // Open on GitHub — explicit external link.
+                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
+                    HStack(spacing: 4) {
+                        Text("Open on GitHub")
+                            .font(.system(size: 12).weight(.medium))
+                            .foregroundStyle(Tokens.text)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 10).weight(.semibold))
+                            .foregroundStyle(Tokens.textMuted)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+
+                // State pill — non-interactive, shows Open / Merged / Closed / Draft.
+                HStack(spacing: 4) {
+                    Image(systemName: stateIcon).font(.system(size: 11).weight(.semibold))
+                    Text(stateLabel).font(.system(size: 11).weight(.semibold))
+                }
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(stateColor.opacity(0.10), in: Capsule())
+                .foregroundStyle(stateColor)
             }
             Text(pr.title).font(.system(size: 18).weight(.bold)).tracking(-0.2)
             HStack(spacing: 6) {
@@ -115,6 +147,9 @@ struct PRDetailView: View {
     }
 
     private func loadTimeline() async {
+        if isLoading { return }
+        isLoading = true
+        defer { isLoading = false }
         let ref = RepoRef(owner: pr.repo.owner, name: pr.repo.name)
         let number = pr.number
         let prID = pr.id
