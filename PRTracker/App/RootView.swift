@@ -59,11 +59,17 @@ struct MainView: View {
                 selection: $appState.activeSection,
                 onOpenSettings: onOpenSettings)
         } detail: {
-            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                PRDetailView(pr: pr, viewer: viewerStates.first?.viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
-            } else {
+            ZStack {
                 FeedView(coordinator: coordinator)
+                if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
+                    PRDetailView(pr: pr, viewer: viewerStates.first?.viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Tokens.contentBg)
+                        .transition(.move(edge: .trailing))
+                        .zIndex(1)
+                }
             }
+            .animation(.easeInOut(duration: 0.28), value: appState.selectedPRID)
         }
         .onChange(of: appState.activeSection) { _, _ in
             // Switching sections in the sidebar pops out of any open PR detail.
