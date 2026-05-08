@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PR Tracker · Priority Lanes</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9; }
+  #root { height: 100%; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="ui-primitives.jsx"></script>
+  <script type="text/babel" src="mac-shell.jsx"></script>
+  <script type="text/babel" src="feed-lanes.jsx"></script>
+  <script type="text/babel" src="pr-detail.jsx"></script>
+  <script type="text/babel" src="tweaks-menubar.jsx"></script>
+  <script type="text/babel" src="pr-app-c.jsx"></script>
+
+  <script type="text/babel">
+    const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+
+    function App() {
+      return (
+        <DesignCanvas>
+          <DCSection id="intro" title="PR Tracker · Priority Lanes" subtitle="Option C polished. Color-coded priority rail + Review→CI→Merge gauge. Collapsible sections, local read/unread, light & dark. Tweakable via the Tweaks toggle in the toolbar.">
+            <DCPostIt>
+              The first artboard is the primary. Use the <b>Tweaks</b> toggle to change gauge style, density, color system, grouping, status emphasis, and author placement live. Click a PR card to drill into its timeline; right-click or use the hover eye icon to mark read/unread. Other artboards show different defaults so you can compare.
+            </DCPostIt>
+          </DCSection>
+
+          <DCSection id="primary" title="Primary — Pills · Comfortable · Color · Sections" subtitle="The default. Everything visible at a glance. Use Tweaks to override.">
+            <DCArtboard id="c-primary-light" label="Light" width={1280} height={820}>
+              <PRAppC initialTheme="light" />
+            </DCArtboard>
+            <DCArtboard id="c-primary-dark" label="Dark" width={1280} height={820}>
+              <PRAppC initialTheme="dark" />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="gauges" title="Gauge style sub-variations" subtitle="Three ways to render the Review → CI → Merge gauge.">
+            <DCArtboard id="gauge-bars" label="Progress bars (default)" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ gaugeStyle: 'bar' }} />
+            </DCArtboard>
+            <DCArtboard id="gauge-pills" label="Pills" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ gaugeStyle: 'pills' }} />
+            </DCArtboard>
+            <DCArtboard id="gauge-dots" label="Dot-segmented" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ gaugeStyle: 'dots' }} />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="density" title="Density sub-variations" subtitle="More or less breathing room. Compact hides branch + hint bubble and inlines the gauge.">
+            <DCArtboard id="dense-compact" label="Compact" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ density: 'compact', gaugeStyle: 'dots' }} />
+            </DCArtboard>
+            <DCArtboard id="dense-spacious" label="Spacious" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ density: 'spacious' }} />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="palette" title="Color system sub-variations" subtitle="Rails can encode role (blue/orange/green…), saturation, muted monochrome, or urgency-only (red/yellow/green).">
+            <DCArtboard id="pal-muted" label="Muted (monochrome rails)" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ palette: 'muted' }} />
+            </DCArtboard>
+            <DCArtboard id="pal-urgency" label="Urgency-only" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ palette: 'semantic' }} />
+            </DCArtboard>
+            <DCArtboard id="pal-saturated" label="Saturated" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ palette: 'saturated' }} />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="grouping" title="Grouping + status emphasis" subtitle="Flat sections vs. one unified timeline-sorted feed. Status pills always vs. on hover.">
+            <DCArtboard id="group-unified" label="Unified timeline" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ grouping: 'unified' }} />
+            </DCArtboard>
+            <DCArtboard id="emph-hover" label="Status on hover only" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ statusEmphasis: 'hover' }} />
+            </DCArtboard>
+            <DCArtboard id="author-leading" label="Author avatar leads title" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{ authorPlacement: 'leading' }} />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail" title="PR detail view" subtitle="Timeline with faded seen items, blue accent + highlight on new items. Right rail: CI breakdown, reviewers, labels, diff stats. Quick reply with Approve / Request changes.">
+            <DCArtboard id="detail-light" label="Light · #5107" width={1280} height={820}>
+              <PRAppC initialTheme="light" initialOpts={{}} />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="menubar" title="Menu-bar indicator preview" subtitle="Compact status in the macOS menu bar with red badge when items need attention. Clicking opens a quick dropdown that mirrors the feed sections + the top attention item.">
+            <DCArtboard id="mb-light" label="Menu bar + dropdown · Light" width={560} height={360}>
+              <div style={{ padding: 10 }}>
+                <MenuBarPreview dark={false} attentionCount={1} reviewCount={2} />
+              </div>
+            </DCArtboard>
+            <DCArtboard id="mb-dark" label="Menu bar + dropdown · Dark" width={560} height={360}>
+              <div style={{ padding: 10, background: '#1c1c1e', height: '100%' }}>
+                <MenuBarPreview dark={true} attentionCount={1} reviewCount={2} />
+              </div>
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
