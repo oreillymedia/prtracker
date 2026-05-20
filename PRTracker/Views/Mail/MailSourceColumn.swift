@@ -2,15 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct MailSourceColumn: View {
+    @Query private var repos: [Repo]
+
     let syncActor: SyncActor
     var onOpenSettings: () -> Void
 
     var body: some View {
+        let repo = repos.first(where: \.isActive)
         VStack(spacing: 0) {
-            // TODO(Task 11): replace with RepoSelectorCard
-            Text("Repo Selector").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12).padding(.vertical, 8)
+            RepoSelectorCard(repoSlug: repo?.id ?? "—", onTap: onOpenSettings)
+                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 8)
 
             MailListView(syncActor: syncActor)
 
