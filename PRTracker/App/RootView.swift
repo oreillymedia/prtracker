@@ -57,24 +57,9 @@ struct MainView: View {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MailEmptyDetailViewPlaceholder()
+                MailEmptyDetailView()
             }
         }
         .navigationTitle(repo?.id ?? "")
-    }
-}
-
-/// Temporary placeholder until Task 13 introduces the real empty view.
-private struct MailEmptyDetailViewPlaceholder: View {
-    var body: some View {
-        VStack {
-            Spacer()
-            Text("No pull request selected.")
-                .font(.system(size: 13))
-                .foregroundStyle(Tokens.textFaint)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Tokens.contentBg)
     }
 }
