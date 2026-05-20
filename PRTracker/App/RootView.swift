@@ -13,6 +13,14 @@ struct RootView: View {
     let client: GitHubClient
     let coordinator: SyncCoordinator
 
+    private func resolvedColorScheme() -> ColorScheme? {
+        switch viewerStates.first?.themePreferenceRaw ?? "system" {
+        case "light": return .light
+        case "dark":  return .dark
+        default:      return nil
+        }
+    }
+
     var body: some View {
         let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && (viewerStates.first?.activeRepoID != nil)
         Group {
@@ -25,6 +33,7 @@ struct RootView: View {
                 })
             }
         }
+        .preferredColorScheme(resolvedColorScheme())
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 let now = Date.now

@@ -49,6 +49,17 @@ struct SettingsView: View {
                     try? ctx.save()
                 }
             }))
+            Picker("Theme", selection: Binding(
+                get: { vs.themePreference },
+                set: { newValue in
+                    vs.themePreference = newValue
+                    try? ctx.save()
+                })) {
+                Text("System").tag(ViewerState.ThemePreference.system)
+                Text("Light").tag(ViewerState.ThemePreference.light)
+                Text("Dark").tag(ViewerState.ThemePreference.dark)
+            }
+            .pickerStyle(.menu)
             Spacer()
         }
     }
