@@ -15,6 +15,7 @@ struct MenuBarContentView: View {
         let viewer = viewerStates.first?.viewer
         let repo = repos.first(where: \.isActive)
         let buckets = grouped(viewerLogin: viewer?.login ?? "")
+        let sectionOrder: [PRTracker.Section] = [.attention, .review, .mine, .mentions, .involved, .recent]
 
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -24,24 +25,21 @@ struct MenuBarContentView: View {
                     .microText().foregroundStyle(Tokens.textMuted)
             }.padding(12)
             Divider()
-            row(.attention, count: buckets[.attention]?.count ?? 0)
-            row(.review,    count: buckets[.review]?.count ?? 0)
-            row(.mine,      count: buckets[.mine]?.count ?? 0)
-            row(.mentions,  count: buckets[.mentions]?.count ?? 0)
-            if let top = buckets[.attention]?.first {
-                Divider()
-                Button {
-                    appState.selectedPRID = top.id
-                    openWindow(id: "main")
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("#\(top.number) \(top.title)").font(.system(size: 12).weight(.medium))
-                        if let snippet = top.timeline.last(where: { $0.type == .comment })?.body {
-                            Text(snippet).italic().foregroundStyle(Tokens.textMuted).lineLimit(1)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(sectionOrder, id: \.self) { section in
+                        if let sectionPRs = buckets[section], !sectionPRs.isEmpty {
+                            sectionHeader(section)
+                            ForEach(sectionPRs, id: \.id) { pr in
+                                prRow(pr)
+                            }
                         }
-                    }.padding(.horizontal, 12).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
-                }.buttonStyle(.plain)
+                    }
+                }
             }
+            .frame(maxHeight: 360)
+
             Divider()
             menuButton("Open PR Tracker", shortcut: nil) { openWindow(id: "main") }
             menuButton("Refresh now", shortcut: "⌘R") { Task { await coordinator.refresh() } }
@@ -55,19 +53,66 @@ struct MenuBarContentView: View {
         }
     }
 
-    private func row(_ section: PRTracker.Section, count: Int) -> some View {
+    // MARK: - Compressed PR row
+
+    private func prRow(_ pr: PullRequest) -> some View {
         Button {
-            appState.activeFilter = MailFilter.allCases.first(where: { $0.section == section }) ?? .all
+            appState.selectedPRID = pr.id
             openWindow(id: "main")
         } label: {
-            HStack {
-                Circle().fill(section.lane.color).frame(width: 8, height: 8)
-                Text(section.lane.label).font(.system(size: 12))
-                Spacer()
-                if count > 0 { Text("\(count)").microText().foregroundStyle(Tokens.textMuted) }
-            }.padding(.horizontal, 12).padding(.vertical, 6)
-        }.buttonStyle(.plain)
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(laneColor(for: pr))
+                    .frame(width: 3)
+                    .opacity(pr.isUnread ? 1 : 0.5)
+
+                HStack(spacing: 7) {
+                    UnreadDot(on: pr.isUnread)
+                    Text(pr.title)
+                        .font(.system(size: 12, weight: pr.isUnread ? .bold : .medium))
+                        .foregroundStyle(Tokens.text)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(RelativeTimeFormatter.short(pr.updatedAt))
+                        .font(.system(size: 10).monospacedDigit())
+                        .foregroundStyle(Tokens.textFaint)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+            }
+            .opacity(pr.isUnread ? 1 : 0.62)
+        }
+        .buttonStyle(.plain)
     }
+
+    // MARK: - Section header
+
+    private func sectionHeader(_ section: PRTracker.Section) -> some View {
+        Text(section.lane.label)
+            .font(.system(size: 10.5, weight: .bold))
+            .tracking(0.6)
+            .foregroundStyle(Tokens.textFaint)
+            .textCase(.uppercase)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+    }
+
+    // MARK: - Lane color helper
+
+    private func laneColor(for pr: PullRequest) -> Color {
+        if pr.attentionHint != nil { return Lane.attention.color }
+        if pr.mentionHint   != nil { return Lane.mentions.color }
+        if pr.involvedHint  != nil { return Lane.involved.color }
+        switch pr.state {
+        case .merged: return Lane.recent.color
+        case .open:   return Lane.mine.color
+        default:      return Tokens.textFaint
+        }
+    }
+
+    // MARK: - Menu button
 
     private func menuButton(_ label: String, shortcut: String?, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -79,6 +124,8 @@ struct MenuBarContentView: View {
             .padding(.horizontal, 12).padding(.vertical, 6)
         }.buttonStyle(.plain)
     }
+
+    // MARK: - Grouping
 
     private func grouped(viewerLogin: String) -> [PRTracker.Section: [PullRequest]] {
         var out: [PRTracker.Section: [PullRequest]] = [:]
