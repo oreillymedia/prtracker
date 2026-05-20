@@ -27,8 +27,7 @@ struct PRDetailView: View {
                     }.padding(20)
                 }
                 DetailRightRail(pr: pr,
-                    onMarkAllSeen: { Task { try? await syncActor.setSeenForPR(prID: pr.id, isSeen: true) } },
-                    onMarkAllUnseen: { Task { try? await syncActor.setSeenForPR(prID: pr.id, isSeen: false) } })
+                    onMarkUnread: { Task { try? await syncActor.setLastReadAt(prID: pr.id, date: nil) } })
             }
         }
         .task(id: pr.id) {

@@ -2,8 +2,7 @@ import SwiftUI
 
 struct DetailRightRail: View {
     let pr: PullRequest
-    var onMarkAllSeen: () -> Void
-    var onMarkAllUnseen: () -> Void
+    var onMarkUnread: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -48,14 +47,17 @@ struct DetailRightRail: View {
                 }.font(.system(size: 12))
             }
             Spacer()
-            HStack(spacing: 6) {
-                Button("Mark all seen") { onMarkAllSeen() }
-                    .buttonStyle(.bordered)
+            Button {
+                onMarkUnread()
+            } label: {
+                Text("Mark as unread")
+                    .font(.system(size: 12, weight: .medium))
                     .frame(maxWidth: .infinity)
-                Button("Mark all unseen") { onMarkAllUnseen() }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
             }
+            .buttonStyle(.plain)
         }
         .padding(18)
         .frame(width: 260)
