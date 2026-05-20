@@ -44,6 +44,7 @@ struct TimelineEventRow: View {
             Rectangle()
                 .fill(Tokens.accent)
                 .frame(width: 4)
+                // -8 = -4 design target + cancels the HStack's 4pt leading padding
                 .offset(x: -8)
                 .opacity(event.isSeen ? 0 : 1)
         }
