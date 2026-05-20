@@ -14,10 +14,10 @@ struct RootView: View {
     let coordinator: SyncCoordinator
 
     private func resolvedColorScheme() -> ColorScheme? {
-        switch viewerStates.first?.themePreferenceRaw ?? "system" {
-        case "light": return .light
-        case "dark":  return .dark
-        default:      return nil
+        switch viewerStates.first?.themePreference ?? .system {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
         }
     }
 
