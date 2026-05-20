@@ -3,7 +3,7 @@ import SwiftData
 
 @Observable
 final class AppState {
-    var activeSection: Section? = nil          // nil == "All"
+    var activeFilter: MailFilter = .all
     var selectedPRID: String? = nil
     var rateLimitRemaining: Int? = nil
     var rateLimitResetAt: Date? = nil

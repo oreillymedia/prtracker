@@ -47,51 +47,33 @@ struct MainView: View {
     var onOpenSettings: () -> Void
 
     var body: some View {
-        @Bindable var appState = appState
         let viewer = viewerStates.first?.viewer
         let repo = repos.first(where: \.isActive)
 
-        NavigationSplitView {
-            Sidebar(
-                viewer: viewer,
-                repoSlug: repo?.id ?? "",
-                counts: counts(viewerLogin: viewer?.login ?? ""),
-                selection: $appState.activeSection,
-                onOpenSettings: onOpenSettings)
-        } detail: {
-            ZStack {
-                FeedView(coordinator: coordinator)
-                if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                    PRDetailView(pr: pr, viewer: viewerStates.first?.viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Tokens.contentBg)
-                        .transition(.move(edge: .trailing))
-                        .zIndex(1)
-                }
-            }
-            .animation(.easeInOut(duration: 0.28), value: appState.selectedPRID)
-        }
-        .onChange(of: appState.activeSection) { _, _ in
-            // Switching sections in the sidebar pops out of any open PR detail.
-            appState.selectedPRID = nil
-        }
-    }
+        HStack(spacing: 0) {
+            MailSourceColumn(onOpenSettings: onOpenSettings)
 
-    private func counts(viewerLogin: String) -> [Section: Int] {
-        var c: [Section: Int] = [:]
-        for pr in prs {
-            let input = ClassifierInput.PR(
-                id: pr.id, number: pr.number, authorLogin: pr.author.login,
-                state: pr.state == .closed || pr.state == .merged ? "closed" : "open",
-                mergedAt: pr.mergedAt,
-                requestedReviewerLogins: pr.reviewers.filter { $0.state == .pending }.map(\.user.login),
-                reviewerStates: pr.reviewers.map { ($0.user.login, $0.stateRaw) },
-                ciFail: pr.ciFail, ciRunning: pr.ciRunning,
-                commenterLogins: [], updatedAt: pr.updatedAt)
-            if let s = Classifier.section(for: input, viewer: viewerLogin, mentions: [], now: .now) {
-                c[s, default: 0] += 1
+            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
+                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
+            } else {
+                MailEmptyDetailViewPlaceholder()
             }
         }
-        return c
+        .navigationTitle(repo?.id ?? "")
+    }
+}
+
+/// Temporary placeholder until Task 13 introduces the real empty view.
+private struct MailEmptyDetailViewPlaceholder: View {
+    var body: some View {
+        VStack {
+            Spacer()
+            Text("No pull request selected.")
+                .font(.system(size: 13))
+                .foregroundStyle(Tokens.textFaint)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Tokens.contentBg)
     }
 }

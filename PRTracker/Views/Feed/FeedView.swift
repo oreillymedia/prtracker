@@ -18,7 +18,7 @@ struct FeedView: View {
         let repo = repos.first(where: \.isActive)
         let viewerLogin = viewer?.login ?? ""
         let buckets = grouped(viewerLogin: viewerLogin)
-        let activeSection = appState.activeSection
+        let activeSection = appState.activeFilter.section
 
         VStack(spacing: 0) {
             FeedToolbar(

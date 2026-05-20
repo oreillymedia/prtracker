@@ -57,7 +57,7 @@ struct MenuBarContentView: View {
 
     private func row(_ section: PRTracker.Section, count: Int) -> some View {
         Button {
-            appState.activeSection = section
+            appState.activeFilter = MailFilter.allCases.first(where: { $0.section == section }) ?? .all
             openWindow(id: "main")
         } label: {
             HStack {
