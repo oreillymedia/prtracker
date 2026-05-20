@@ -51,7 +51,7 @@ struct MainView: View {
         let repo = repos.first(where: \.isActive)
 
         HStack(spacing: 0) {
-            MailSourceColumn(onOpenSettings: onOpenSettings)
+            MailSourceColumn(syncActor: coordinator.syncActorForView, onOpenSettings: onOpenSettings)
 
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
