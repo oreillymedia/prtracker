@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 struct PRDetailView: View {
     let pr: PullRequest
