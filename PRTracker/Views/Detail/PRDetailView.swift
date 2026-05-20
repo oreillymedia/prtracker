@@ -32,6 +32,7 @@ struct PRDetailView: View {
         }
         .task(id: pr.id) {
             await loadTimeline()
+            try? await syncActor.setSeenForPR(prID: pr.id, isSeen: true)
             try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
         }
     }
