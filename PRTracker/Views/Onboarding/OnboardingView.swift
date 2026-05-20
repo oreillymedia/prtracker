@@ -17,24 +17,63 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Set up PR Tracker").font(.title2).fontWeight(.semibold)
-            switch stage {
-            case .token:
-                Text("Paste a GitHub Personal Access Token (classic or fine-grained) with `repo` scope.")
-                SecureField("ghp_…", text: $token)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 420)
-                Button("Validate") { Task { await validateToken() } }
-                    .disabled(token.isEmpty || isValidating)
-            case .repo:
-                Text("Which repository do you want to track?")
-                TextField("owner/name", text: $ownerRepo)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 420)
-                Button("Save") { Task { await saveRepo() } }
-                    .disabled(!ownerRepo.contains("/") || isValidating)
+            Text("Set up PR Tracker")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Tokens.text)
+
+            VStack(alignment: .leading, spacing: 12) {
+                switch stage {
+                case .token:
+                    Text("Paste a GitHub Personal Access Token (classic or fine-grained) with `repo` scope.")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Tokens.textMuted)
+                    SecureField("ghp_…", text: $token)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Tokens.contentBg, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
+                        .frame(maxWidth: 420)
+                    Button("Validate") { Task { await validateToken() } }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Tokens.accent, in: RoundedRectangle(cornerRadius: 6))
+                        .disabled(token.isEmpty || isValidating)
+                case .repo:
+                    Text("Which repository do you want to track?")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Tokens.textMuted)
+                    TextField("owner/name", text: $ownerRepo)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Tokens.contentBg, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
+                        .frame(maxWidth: 420)
+                    Button("Save") { Task { await saveRepo() } }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Tokens.accent, in: RoundedRectangle(cornerRadius: 6))
+                        .disabled(!ownerRepo.contains("/") || isValidating)
+                }
+
+                if let error {
+                    Text(error)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Tokens.changes)
+                }
             }
-            if let error { Text(error).foregroundStyle(.red).font(.callout) }
+            .padding(16)
+            .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Tokens.border, lineWidth: 0.5))
         }
         .padding(28)
         .frame(width: 520, height: 320)
