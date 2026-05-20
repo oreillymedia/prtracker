@@ -55,6 +55,7 @@ struct MainView: View {
 
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 MailEmptyDetailViewPlaceholder()
             }
