@@ -221,4 +221,11 @@ actor SyncActor {
         for e in pr.timeline where e.at <= target.at { e.isSeen = true }
         try ctx.save()
     }
+
+    func setLastReadAt(prID: String, date: Date?) throws {
+        let ctx = modelContext
+        guard let pr = prByID(prID, ctx: ctx) else { return }
+        pr.lastReadAt = date
+        try ctx.save()
+    }
 }

@@ -93,4 +93,26 @@ import SwiftData
         #expect(prs[0].ciChecks.count == 0)
         #expect(prs[0].headSha == "sha2")
     }
+
+    @Test func setLastReadAtUpdatesPullRequest() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        let t = Date(timeIntervalSince1970: 1_700_000_000)
+        try await actor.setLastReadAt(prID: "PR_5107", date: t)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastReadAt == t)
+    }
+
+    @Test func setLastReadAtClearsWhenNil() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        try await actor.setLastReadAt(prID: "PR_5107", date: Date())
+        try await actor.setLastReadAt(prID: "PR_5107", date: nil)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastReadAt == nil)
+    }
 }
