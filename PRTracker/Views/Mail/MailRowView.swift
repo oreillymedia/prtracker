@@ -8,19 +8,18 @@ struct MailRowView: View {
     @State private var hover = false
 
     private var bucket: Section? {
-        // Reuse the existing Classifier output by recomputing here.
-        // For row display we only need the Lane, so we just match the same priority chain
-        // by reading the hints + state. If `Classifier.section(for:viewer:mentions:now:)`
-        // produced this PR, the lane mapping below is identical.
+        // Best-effort lane derivation for the priority rail. The hint fields
+        // (set by sync) carry the most specific bucket; if none is set we fall
+        // back to merged-vs-open. Authoritative classification (which requires
+        // the viewer login) happens in MailListView (Task 10) — the rail color
+        // here is decorative.
         if pr.attentionHint != nil { return .attention }
         if pr.mentionHint   != nil { return .mentions }
         if pr.involvedHint  != nil { return .involved }
         switch pr.state {
         case .merged: return .recent
-        case .open:
-            if pr.reviewState == nil && pr.reviewers.contains(where: { $0.user.login == "" }) { return .review }
-            return .mine
-        default: return nil
+        case .open:   return .mine
+        default:      return nil
         }
     }
 
@@ -114,7 +113,7 @@ struct MailRowView: View {
             Image(systemName: "arrow.triangle.merge").font(.system(size: 10).weight(.semibold))
             Text("Merged").font(.system(size: 10.5, weight: .semibold))
         }
-        .foregroundStyle(Color(red: 0.51, green: 0.31, blue: 0.87))
+        .foregroundStyle(Lane.recent.color)
     }
 
     private var preview: String? {
