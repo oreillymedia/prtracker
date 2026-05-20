@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct PRDetailView: View {
-    @Environment(\.modelContext) private var ctx
-    @Environment(AppState.self) private var appState
     let pr: PullRequest
     let viewer: User?
     let client: GitHubClient
@@ -34,116 +32,20 @@ struct PRDetailView: View {
                     onMarkAllUnseen: { Task { try? await syncActor.setSeenForPR(prID: pr.id, isSeen: false) } })
             }
         }
-        .task(id: pr.id) { await loadTimeline() }
+        .task(id: pr.id) {
+            await loadTimeline()
+            try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
+        }
     }
 
     @ViewBuilder
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button { appState.selectedPRID = nil } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 10).weight(.semibold))
-                            .foregroundStyle(Tokens.textMuted)
-                        Text("Feed")
-                            .font(.system(size: 12).weight(.medium))
-                            .foregroundStyle(Tokens.text)
-                    }
-                    .padding(.leading, 6)
-                    .padding(.trailing, 10)
-                    .frame(height: 26)
-                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Tokens.border, lineWidth: 0.5)
-                    )
-                }
-                .buttonStyle(.plain)
-                Text("\(pr.repo.id) / #\(pr.number)").foregroundStyle(Tokens.textMuted)
-                Spacer()
-
-                // Refresh — re-runs the timeline / detail / CI fetch.
-                Button {
-                    Task { await loadTimeline() }
-                } label: {
-                    Image(systemName: isLoading ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                        .font(.system(size: 11).weight(.semibold))
-                        .foregroundStyle(Tokens.textMuted)
-                        .frame(width: 26, height: 26)
-                        .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .disabled(isLoading)
-                .help("Refresh")
-
-                // Open on GitHub — explicit external link.
-                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
-                    HStack(spacing: 4) {
-                        Text("Open on GitHub")
-                            .font(.system(size: 12).weight(.medium))
-                            .foregroundStyle(Tokens.text)
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 10).weight(.semibold))
-                            .foregroundStyle(Tokens.textMuted)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 26)
-                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-
-                // State pill — non-interactive, shows Open / Merged / Closed / Draft.
-                HStack(spacing: 4) {
-                    Image(systemName: stateIcon).font(.system(size: 11).weight(.semibold))
-                    Text(stateLabel).font(.system(size: 11).weight(.semibold))
-                }
-                .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(stateColor.opacity(0.10), in: Capsule())
-                .foregroundStyle(stateColor)
-            }
-            Text(pr.title).font(.system(size: 18).weight(.bold)).tracking(-0.2)
-            HStack(spacing: 6) {
-                AvatarView(user: pr.author, size: 18)
-                Text(pr.author.name ?? pr.author.login).metaText()
-                Text("wants to merge into").foregroundStyle(Tokens.textFaint)
-                Text(pr.branchBase).monoText().padding(.horizontal, 4).background(Tokens.hairline, in: Capsule())
-                Text("from").foregroundStyle(Tokens.textFaint)
-                Text(pr.branchHead).monoText().padding(.horizontal, 4).background(Tokens.hairline, in: Capsule())
-                Text("· opened \(RelativeTimeFormatter.short(pr.openedAt))").foregroundStyle(Tokens.textFaint).microText()
-            }
-        }
-        .padding(24)
-        .background(Tokens.panelBg)
-        .overlay(Rectangle().fill(Tokens.border).frame(height: 0.5), alignment: .bottom)
-    }
-
-    // State pill at top right of header (Open / Merged / Closed / Draft)
-    private var stateLabel: String {
-        switch pr.state {
-        case .open:   "Open"
-        case .merged: "Merged"
-        case .closed: "Closed"
-        case .draft:  "Draft"
-        }
-    }
-    private var stateIcon: String {
-        switch pr.state {
-        case .open:   "arrow.triangle.pull"
-        case .merged: "arrow.triangle.merge"
-        case .closed: "xmark.circle"
-        case .draft:  "circle.dashed"
-        }
-    }
-    private var stateColor: Color {
-        switch pr.state {
-        case .open:   Tokens.approved
-        case .merged: Lane.recent.color
-        case .closed: Tokens.changes
-        case .draft:  Tokens.textMuted
-        }
+        MailDetailHeader(
+            pr: pr,
+            isRefreshing: isLoading,
+            lastUpdatedAt: pr.updatedAt,
+            onRefresh: { Task { await loadTimeline() } }
+        )
     }
 
     private func loadTimeline() async {
