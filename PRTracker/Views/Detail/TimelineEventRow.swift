@@ -33,13 +33,19 @@ struct TimelineEventRow: View {
 
     private var dot: some View {
         ZStack {
-            Circle().fill(Tokens.contentBg).frame(width: 22, height: 22)
-            Circle().fill(dotColor).frame(width: 18, height: 18)
+            Circle()
+                .fill(dotColor)
+                .frame(width: 20, height: 20)
+                .overlay(Circle().stroke(Tokens.contentBg, lineWidth: 2))
+                .overlay(Circle().stroke(Tokens.accent.opacity(0.22), lineWidth: 3).opacity(event.isSeen ? 0 : 1))
             Image(systemName: dotIcon).foregroundStyle(.white).font(.system(size: 10).weight(.bold))
-            if !event.isSeen {
-                Circle().stroke(Tokens.accent.opacity(0.22), lineWidth: 4)
-                    .frame(width: 22, height: 22)
-            }
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Tokens.accent)
+                .frame(width: 4)
+                .offset(x: -8)
+                .opacity(event.isSeen ? 0 : 1)
         }
     }
 
