@@ -5,7 +5,7 @@ struct FilterPillBar: View {
     let counts: [MailFilter: Int]
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 6) {
                 ForEach(MailFilter.allCases) { filter in
                     pill(filter)
@@ -15,6 +15,7 @@ struct FilterPillBar: View {
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
+        .scrollIndicators(.hidden)
         .overlay(Rectangle().fill(Tokens.hairline).frame(height: 0.5), alignment: .bottom)
     }
 

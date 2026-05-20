@@ -44,14 +44,16 @@ struct MailListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
-        .onChange(of: appState.activeFilter) { _, _ in
-            reconcileSelection(visiblePRs: visiblePRs(buckets: buckets, filter: appState.activeFilter))
+        .onChange(of: appState.activeFilter) { _, newFilter in
+            let freshBuckets = grouped(viewerLogin: viewerStates.first?.viewer?.login ?? "")
+            reconcileSelection(visiblePRs: visiblePRs(buckets: freshBuckets, filter: newFilter))
         }
     }
 
     private func grouped(viewerLogin: String) -> [Section: [PullRequest]] {
         var out: [Section: [PullRequest]] = [:]
         let now = Date.now
+        let mentionedIDs = Set(prs.compactMap { $0.mentionHint != nil ? $0.id : nil })
         for pr in prs {
             let input = ClassifierInput.PR(
                 id: pr.id, number: pr.number, authorLogin: pr.author.login,
@@ -62,7 +64,7 @@ struct MailListView: View {
                 ciFail: pr.ciFail, ciRunning: pr.ciRunning,
                 commenterLogins: pr.timeline.compactMap { $0.type == .comment ? $0.actor?.login : nil },
                 updatedAt: pr.updatedAt)
-            if let s = Classifier.section(for: input, viewer: viewerLogin, mentions: [], now: now) {
+            if let s = Classifier.section(for: input, viewer: viewerLogin, mentions: mentionedIDs, now: now) {
                 out[s, default: []].append(pr)
             }
         }
