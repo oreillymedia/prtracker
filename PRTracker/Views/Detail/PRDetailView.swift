@@ -1,6 +1,8 @@
 import SwiftUI
+import SwiftData
 
 struct PRDetailView: View {
+    @Environment(\.modelContext) private var ctx
     let pr: PullRequest
     let viewer: User?
     let client: GitHubClient
@@ -34,13 +36,7 @@ struct PRDetailView: View {
                     }.padding(20)
                 }
                 DetailRightRail(pr: pr,
-                    onMarkUnread: {
-                        userMarkedUnread = true
-                        Task {
-                            try? await syncActor.setSeenForPR(prID: pr.id, isSeen: false)
-                            try? await syncActor.setLastReadAt(prID: pr.id, date: nil)
-                        }
-                    })
+                    onMarkUnread: { markUnreadOnMainContext() })
             }
         }
         .task(id: pr.id) {
@@ -51,6 +47,19 @@ struct PRDetailView: View {
                 try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
             }
         }
+    }
+
+    /// Mark unread by mutating the main context's models directly so the
+    /// detail view's bound `pr` reflects the change immediately. Going
+    /// through SyncActor would write on a different context and rely on
+    /// cross-context propagation, which doesn't refresh the live view
+    /// until it's recreated.
+    private func markUnreadOnMainContext() {
+        userMarkedUnread = true
+        pr.lastReadAt = nil
+        for e in pr.timeline { e.isSeen = false }
+        for c in pr.reviewComments { c.isSeen = false }
+        try? ctx.save()
     }
 
     @ViewBuilder
