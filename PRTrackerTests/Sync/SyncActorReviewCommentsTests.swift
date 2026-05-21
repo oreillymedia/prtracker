@@ -102,4 +102,38 @@ import SwiftData
         #expect(comments[0].inReplyToID == nil)
         #expect(comments[1].inReplyToID == "PRRC_1001")
     }
+
+    @Test func setSeenForPRCascadesToReviewComments() async throws {
+        let (container, _, _) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertReviewComments(prID: "PR_5107",
+            fromDTOs: [sampleDTO(id: 1001), sampleDTO(id: 1002)])
+        try await actor.setSeenForPR(prID: "PR_5107", isSeen: true)
+        let ctx = ModelContext(container)
+        let comments = try ctx.fetch(FetchDescriptor<ReviewComment>())
+        #expect(comments.allSatisfy { $0.isSeen == true })
+    }
+
+    @Test func setSeenForPRUnsets() async throws {
+        let (container, _, _) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertReviewComments(prID: "PR_5107", fromDTOs: [sampleDTO()])
+        try await actor.setSeenForPR(prID: "PR_5107", isSeen: true)
+        try await actor.setSeenForPR(prID: "PR_5107", isSeen: false)
+        let ctx = ModelContext(container)
+        let comments = try ctx.fetch(FetchDescriptor<ReviewComment>())
+        #expect(comments.allSatisfy { $0.isSeen == false })
+    }
+
+    @Test func setSeenForSingleReviewComment() async throws {
+        let (container, _, _) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertReviewComments(prID: "PR_5107",
+            fromDTOs: [sampleDTO(id: 1001), sampleDTO(id: 1002)])
+        try await actor.setSeen(reviewCommentID: "PRRC_1001", isSeen: true)
+        let ctx = ModelContext(container)
+        let comments = try ctx.fetch(FetchDescriptor<ReviewComment>()).sorted { $0.id < $1.id }
+        #expect(comments[0].isSeen == true)
+        #expect(comments[1].isSeen == false)
+    }
 }

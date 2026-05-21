@@ -281,6 +281,7 @@ actor SyncActor {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
         for e in pr.timeline { e.isSeen = isSeen }
+        for c in pr.reviewComments { c.isSeen = isSeen }
         try ctx.save()
     }
 
@@ -289,6 +290,16 @@ actor SyncActor {
         guard let pr = prByID(prID, ctx: ctx),
               let target = pr.timeline.first(where: { $0.id == eventID }) else { return }
         for e in pr.timeline where e.at <= target.at { e.isSeen = true }
+        // Cascade to review comments whose parent review event is at-or-before
+        // the target's timestamp. We look the parent reviews up by reviewID.
+        let cutoffReviewIDs = Set(
+            pr.timeline
+                .filter { $0.at <= target.at && $0.type == .review }
+                .compactMap(\.reviewID)
+        )
+        for c in pr.reviewComments where c.parentReviewIntegerID.map(cutoffReviewIDs.contains) == true {
+            c.isSeen = true
+        }
         try ctx.save()
     }
 
@@ -296,6 +307,15 @@ actor SyncActor {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
         pr.lastReadAt = date
+        try ctx.save()
+    }
+
+    func setSeen(reviewCommentID: String, isSeen: Bool) throws {
+        let ctx = modelContext
+        let target = reviewCommentID
+        let predicate = #Predicate<ReviewComment> { $0.id == target }
+        guard let c = try ctx.fetch(FetchDescriptor<ReviewComment>(predicate: predicate)).first else { return }
+        c.isSeen = isSeen
         try ctx.save()
     }
 
