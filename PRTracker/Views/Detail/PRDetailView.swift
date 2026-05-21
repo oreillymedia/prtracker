@@ -36,7 +36,7 @@ struct PRDetailView: View {
                     }.padding(20)
                 }
                 DetailRightRail(pr: pr,
-                    onMarkUnread: { markUnreadOnMainContext() })
+                    onToggleReadState: { toggleReadStateOnMainContext() })
             }
         }
         .task(id: pr.id) {
@@ -49,16 +49,26 @@ struct PRDetailView: View {
         }
     }
 
-    /// Mark unread by mutating the main context's models directly so the
-    /// detail view's bound `pr` reflects the change immediately. Going
-    /// through SyncActor would write on a different context and rely on
-    /// cross-context propagation, which doesn't refresh the live view
-    /// until it's recreated.
-    private func markUnreadOnMainContext() {
-        userMarkedUnread = true
-        pr.lastReadAt = nil
-        for e in pr.timeline { e.isSeen = false }
-        for c in pr.reviewComments { c.isSeen = false }
+    /// Toggle the PR's read state by mutating the main context's models
+    /// directly. Going through SyncActor would write on a different context
+    /// and rely on cross-context propagation, which doesn't refresh the
+    /// live view until it's recreated.
+    private func toggleReadStateOnMainContext() {
+        if pr.isUnread {
+            // Mark as read: clear unread + dim all events/comments.
+            pr.lastReadAt = .now
+            for e in pr.timeline { e.isSeen = true }
+            for c in pr.reviewComments { c.isSeen = true }
+            // Suppress no trailing .task write; nothing further to gate.
+        } else {
+            // Mark as unread: restore the unseen state and block the
+            // trailing setLastReadAt(.now) in `.task` from clobbering this
+            // during initial load.
+            userMarkedUnread = true
+            pr.lastReadAt = nil
+            for e in pr.timeline { e.isSeen = false }
+            for c in pr.reviewComments { c.isSeen = false }
+        }
         try? ctx.save()
     }
 

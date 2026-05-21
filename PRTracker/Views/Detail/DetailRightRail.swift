@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DetailRightRail: View {
     let pr: PullRequest
-    var onMarkUnread: () -> Void
+    var onToggleReadState: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -48,9 +48,9 @@ struct DetailRightRail: View {
             }
             Spacer()
             Button {
-                onMarkUnread()
+                onToggleReadState()
             } label: {
-                Text("Mark as unread")
+                Text(pr.isUnread ? "Mark as read" : "Mark as unread")
                     .font(.system(size: 12, weight: .medium))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
