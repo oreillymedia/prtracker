@@ -8,6 +8,10 @@ struct PRDetailView: View {
 
     @State private var loadError: GitHubError?
     @State private var isLoading: Bool = false
+    /// Set when the user clicks "Mark as unread" during the detail-load
+    /// window. Prevents the trailing setLastReadAt(.now) in `.task` from
+    /// clobbering the user's intent.
+    @State private var userMarkedUnread: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,13 +34,19 @@ struct PRDetailView: View {
                     }.padding(20)
                 }
                 DetailRightRail(pr: pr,
-                    onMarkUnread: { Task { try? await syncActor.setLastReadAt(prID: pr.id, date: nil) } })
+                    onMarkUnread: {
+                        userMarkedUnread = true
+                        Task { try? await syncActor.setLastReadAt(prID: pr.id, date: nil) }
+                    })
             }
         }
         .task(id: pr.id) {
+            userMarkedUnread = false
             await loadTimeline()
             try? await syncActor.setSeenForPR(prID: pr.id, isSeen: true)
-            try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
+            if !userMarkedUnread {
+                try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
+            }
         }
     }
 
