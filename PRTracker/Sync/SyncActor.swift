@@ -237,25 +237,27 @@ actor SyncActor {
         try ctx.save()
     }
 
-    /// Apply submitted reviews to `pr.reviewers`. GitHub's `/pulls/{n}/reviews`
-    /// returns every review event; we keep the latest one per user as their
-    /// current state. Reviewers not already present (i.e. people who weren't
-    /// requested but reviewed anyway) are inserted.
+    /// Apply submitted reviews to `pr.reviewers`. `/pulls/{n}/reviews` returns
+    /// every review event; per GitHub's semantics, only a subsequent decisive
+    /// review (APPROVED or CHANGES_REQUESTED) overrides a prior decisive one —
+    /// later COMMENTED reviews do not undo an approval. So per reviewer we
+    /// pick the most recent decisive review, falling back to the most recent
+    /// review of any kind if none decisive exists.
     func upsertReviewerStates(prID: String, fromReviews reviews: [ReviewDTO]) throws {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
 
-        var latest: [String: ReviewDTO] = [:]
-        for r in reviews {
-            let existing = latest[r.user.login]
-            let isNewer = existing.flatMap { e in
-                guard let new = r.submitted_at, let old = e.submitted_at else { return r.submitted_at != nil }
-                return new > old
-            } ?? true
-            if isNewer { latest[r.user.login] = r }
+        var byUser: [String: [ReviewDTO]] = [:]
+        for r in reviews { byUser[r.user.login, default: []].append(r) }
+
+        var current: [String: ReviewDTO] = [:]
+        for (login, list) in byUser {
+            let sorted = list.sorted { ($0.submitted_at ?? .distantPast) > ($1.submitted_at ?? .distantPast) }
+            current[login] = sorted.first(where: { $0.state == "APPROVED" || $0.state == "CHANGES_REQUESTED" })
+                ?? sorted.first
         }
 
-        for (login, dto) in latest {
+        for (login, dto) in current {
             guard let state = ReviewState(rawValue: dto.state) else { continue }
             if let existing = pr.reviewers.first(where: { $0.user.login == login }) {
                 existing.state = state
