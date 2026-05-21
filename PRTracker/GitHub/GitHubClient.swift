@@ -87,6 +87,9 @@ extension GitHubClient {
     func reviews(repo: RepoRef, number: Int) async throws -> [ReviewDTO] {
         try await send(Endpoints.reviews(repo, number: number), as: [ReviewDTO].self)
     }
+    func reviewComments(repo: RepoRef, number: Int) async throws -> [ReviewCommentDTO] {
+        try await send(Endpoints.reviewComments(repo, number: number), as: [ReviewCommentDTO].self)
+    }
     func issueComments(repo: RepoRef, number: Int) async throws -> [CommentDTO] {
         try await send(Endpoints.issueComments(repo, number: number), as: [CommentDTO].self)
     }

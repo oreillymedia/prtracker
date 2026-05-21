@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1001,
+    "node_id": "PRRC_1001",
+    "pull_request_review_id": 9001,
+    "in_reply_to_id": null,
+    "user": {"login": "alex.chen", "node_id": "U_alex"},
+    "body": "Should we cache this?",
+    "path": "Sources/Player.swift",
+    "line": 42,
+    "original_line": 42,
+    "diff_hunk": "@@ -38,7 +38,9 @@\n func play() {\n+    let cache = CacheStore.shared\n+    cache.warm(for: media)\n     let player = AVPlayer()\n     player.play()\n }",
+    "created_at": "2026-05-19T15:00:00Z",
+    "updated_at": "2026-05-19T15:00:00Z"
+  },
+  {
+    "id": 1002,
+    "node_id": "PRRC_1002",
+    "pull_request_review_id": 9001,
+    "in_reply_to_id": 1001,
+    "user": {"login": "jamie.r", "node_id": "U_jamie"},
+    "body": "Good idea. Will follow up.",
+    "path": "Sources/Player.swift",
+    "line": 42,
+    "original_line": 42,
+    "diff_hunk": "@@ -38,7 +38,9 @@\n func play() {\n+    let cache = CacheStore.shared\n+    cache.warm(for: media)\n     let player = AVPlayer()\n     player.play()\n }",
+    "created_at": "2026-05-19T15:05:00Z",
+    "updated_at": "2026-05-19T15:05:00Z"
+  },
+  {
+    "id": 1003,
+    "node_id": "PRRC_1003",
+    "pull_request_review_id": 9001,
+    "in_reply_to_id": null,
+    "user": {"login": "alex.chen", "node_id": "U_alex"},
+    "body": "This line moved; flagged as outdated.",
+    "path": "Sources/Reader.swift",
+    "line": null,
+    "original_line": 17,
+    "diff_hunk": "@@ -15,5 +15,5 @@\n class Reader {\n-    var page: Int = 0\n+    var page: Int = 1\n     func next() {}\n }",
+    "created_at": "2026-05-19T15:10:00Z",
+    "updated_at": "2026-05-19T15:10:00Z"
+  }
+]

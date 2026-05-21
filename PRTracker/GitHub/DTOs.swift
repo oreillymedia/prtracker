@@ -64,6 +64,21 @@ struct CommentDTO: Decodable {
     let updated_at: Date
 }
 
+struct ReviewCommentDTO: Decodable {
+    let id: Int
+    let node_id: String?
+    let pull_request_review_id: Int?
+    let in_reply_to_id: Int?
+    let user: UserDTO
+    let body: String
+    let path: String
+    let line: Int?
+    let original_line: Int?
+    let diff_hunk: String
+    let created_at: Date
+    let updated_at: Date
+}
+
 struct TimelineItemDTO: Decodable {
     let event: String                 // "commented" | "reviewed" | "committed" | "labeled" | ...
     let id: Int?
