@@ -69,12 +69,8 @@ struct TimelineEventRow: View {
                     .microText()
                     .foregroundStyle(Tokens.textFaint)
             }
-            if let body = event.body {
-                Text(body)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Tokens.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .lineSpacing(2)
+            if let body = event.body, !body.isEmpty {
+                MarkdownText(raw: body)
             }
         }
         .padding(.horizontal, 12)
