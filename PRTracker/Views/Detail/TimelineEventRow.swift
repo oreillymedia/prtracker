@@ -2,6 +2,8 @@ import SwiftUI
 
 struct TimelineEventRow: View {
     let event: TimelineEvent
+    let reviewComments: [ReviewComment]
+    let syncActor: SyncActor
     var onTap: () -> Void
     var onMarkUpToHere: () -> Void
 
@@ -13,10 +15,16 @@ struct TimelineEventRow: View {
         HStack(alignment: .top, spacing: 12) {
             dot.padding(.leading, 4)
 
-            if hasCard {
-                cardContent
-            } else {
-                inlineContent
+            VStack(alignment: .leading, spacing: 8) {
+                if hasCard {
+                    cardContent
+                } else {
+                    inlineContent
+                }
+
+                if event.type == .review {
+                    nestedThreads
+                }
             }
         }
         .opacity(event.isSeen ? 0.48 : 1.0)
@@ -186,6 +194,25 @@ struct TimelineEventRow: View {
         case .merged:   "arrow.triangle.merge"
         case .closed:   "xmark"
         default:        "tag"
+        }
+    }
+
+    // MARK: - Nested review comment threads
+
+    @ViewBuilder
+    private var nestedThreads: some View {
+        let roots = reviewComments
+            .filter { $0.inReplyToID == nil }
+            .sorted { $0.createdAt < $1.createdAt }
+        if !roots.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(roots) { root in
+                    let replies = reviewComments
+                        .filter { $0.inReplyToID == root.id }
+                        .sorted { $0.createdAt < $1.createdAt }
+                    ReviewCommentThreadView(root: root, replies: replies, syncActor: syncActor)
+                }
+            }
         }
     }
 }

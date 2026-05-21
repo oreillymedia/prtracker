@@ -20,7 +20,10 @@ struct PRDetailView: View {
                                 .foregroundStyle(Tokens.changes).padding(8)
                                 .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                         }
-                        TimelineColumn(events: pr.timeline,
+                        TimelineColumn(
+                            events: pr.timeline,
+                            reviewComments: pr.reviewComments,
+                            syncActor: syncActor,
                             onTapEvent: { e in Task { try? await syncActor.setSeen(eventID: e.id, isSeen: !e.isSeen) } },
                             onMarkUpToHere: { e in Task { try? await syncActor.setSeenUpTo(prID: pr.id, throughEventID: e.id) } })
                         QuickReply(viewer: viewer)
