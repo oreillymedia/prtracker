@@ -4,6 +4,8 @@ struct DetailRightRail: View {
     let pr: PullRequest
     var onToggleReadState: () -> Void
 
+    @State private var showCIDetails: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             section("Status") {
@@ -11,18 +13,9 @@ struct DetailRightRail: View {
                 row("CI", pill: ciSummary, tint: ciTint)
                 row("Mergeable", pill: mergeableLabel, tint: mergeTint)
             }
-            section("CI checks") {
-                ForEach(pr.ciChecks) { run in
-                    HStack(spacing: 8) {
-                        Image(systemName: ciIcon(run.state)).foregroundStyle(ciColor(run.state))
-                        Text(run.name).font(.system(size: 12))
-                        Spacer()
-                        if let d = run.durationSeconds { Text("\(d)s").microText().foregroundStyle(Tokens.textFaint) }
-                    }
-                }
-            }
+            ciChecksSection
             section("Reviewers") {
-                ForEach(pr.reviewers) { r in
+                ForEach(reviewersExcludingAuthor) { r in
                     HStack(spacing: 8) {
                         AvatarView(user: r.user, size: 18)
                         Text(r.user.name ?? r.user.login).metaText()
@@ -71,6 +64,59 @@ struct DetailRightRail: View {
             Text(title).railSectionHeader().foregroundStyle(Tokens.textFaint)
             content()
         }
+    }
+
+    /// CI Checks section — rolled up by default to a single summary pill;
+    /// tap the header to disclose the per-run list.
+    @ViewBuilder
+    private var ciChecksSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                showCIDetails.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Text("CI Checks").railSectionHeader().foregroundStyle(Tokens.textFaint)
+                    Image(systemName: showCIDetails ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Tokens.textFaint)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if showCIDetails {
+                ForEach(pr.ciChecks) { run in
+                    HStack(spacing: 8) {
+                        Image(systemName: ciIcon(run.state)).foregroundStyle(ciColor(run.state))
+                        Text(run.name).font(.system(size: 12))
+                        Spacer()
+                        if let d = run.durationSeconds { Text("\(d)s").microText().foregroundStyle(Tokens.textFaint) }
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: ciIcon(rollupCIState))
+                        .foregroundStyle(ciColor(rollupCIState))
+                    Text(ciSummary).font(.system(size: 12)).foregroundStyle(Tokens.textMuted)
+                }
+            }
+        }
+    }
+
+    /// GitHub treats anyone who appears in /reviews as a "reviewer," but a PR
+    /// author can leave comment-style reviews on their own PR. Excluding the
+    /// author here keeps the Reviewers section accurate to actual reviewers.
+    private var reviewersExcludingAuthor: [Reviewer] {
+        pr.reviewers.filter { $0.user.login != pr.author.login }
+    }
+
+    /// Dominant CI state for the collapsed summary icon: fail > running > pass > pending.
+    private var rollupCIState: CIState {
+        if pr.ciFail > 0 { return .fail }
+        if pr.ciRunning > 0 { return .running }
+        if pr.ciPass > 0 { return .pass }
+        return .pending
     }
 
     private func row(_ label: String, pill: String, tint: Color) -> some View {
