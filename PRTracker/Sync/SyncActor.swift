@@ -79,8 +79,16 @@ actor SyncActor {
             for l in pr.labels { ctx.delete(l) }
             for ldto in dto.labels { ctx.insert(Label(name: ldto.name, pr: pr)) }
 
-            for r in pr.reviewers { ctx.delete(r) }
-            for ureq in dto.requested_reviewers ?? [] {
+            // Reviewers: union of currently-requested reviewers (pending) and
+            // anyone who already submitted a review (state preserved). We only
+            // remove pending stand-ins that GitHub no longer lists as requested;
+            // real review states stick until updateReviewerStates overwrites them.
+            let requestedLogins = Set((dto.requested_reviewers ?? []).map(\.login))
+            for r in pr.reviewers where r.state == .pending && !requestedLogins.contains(r.user.login) {
+                ctx.delete(r)
+            }
+            let existingLogins = Set(pr.reviewers.map(\.user.login))
+            for ureq in dto.requested_reviewers ?? [] where !existingLogins.contains(ureq.login) {
                 let reviewUser = upsertUser(ureq, ctx: ctx)
                 ctx.insert(Reviewer(user: reviewUser, state: .pending, pr: pr))
             }
@@ -226,6 +234,36 @@ actor SyncActor {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
         pr.lastReadAt = date
+        try ctx.save()
+    }
+
+    /// Apply submitted reviews to `pr.reviewers`. GitHub's `/pulls/{n}/reviews`
+    /// returns every review event; we keep the latest one per user as their
+    /// current state. Reviewers not already present (i.e. people who weren't
+    /// requested but reviewed anyway) are inserted.
+    func upsertReviewerStates(prID: String, fromReviews reviews: [ReviewDTO]) throws {
+        let ctx = modelContext
+        guard let pr = prByID(prID, ctx: ctx) else { return }
+
+        var latest: [String: ReviewDTO] = [:]
+        for r in reviews {
+            let existing = latest[r.user.login]
+            let isNewer = existing.flatMap { e in
+                guard let new = r.submitted_at, let old = e.submitted_at else { return r.submitted_at != nil }
+                return new > old
+            } ?? true
+            if isNewer { latest[r.user.login] = r }
+        }
+
+        for (login, dto) in latest {
+            guard let state = ReviewState(rawValue: dto.state) else { continue }
+            if let existing = pr.reviewers.first(where: { $0.user.login == login }) {
+                existing.state = state
+            } else {
+                let reviewUser = upsertUser(dto.user, ctx: ctx)
+                ctx.insert(Reviewer(user: reviewUser, state: state, pr: pr))
+            }
+        }
         try ctx.save()
     }
 }

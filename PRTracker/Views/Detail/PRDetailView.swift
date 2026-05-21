@@ -61,8 +61,9 @@ struct PRDetailView: View {
             async let c = client.issueComments(repo: ref, number: number)
             async let d = client.pullRequestDetail(repo: ref, number: number)
             async let ck = client.checkRuns(repo: ref, ref: headSha)
-            let (tItems, _, _, detail, checks) = try await (t, r, c, d, ck)
+            let (tItems, reviewDTOs, _, detail, checks) = try await (t, r, c, d, ck)
             try await syncActor.upsertTimeline(prID: prID, items: tItems)
+            try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs)
             try await syncActor.updatePRStatistics(prID: prID, dto: detail)
             try await syncActor.upsertCIChecks(prID: prID, dto: checks)
             loadError = nil
