@@ -8,6 +8,7 @@ enum TestContainer {
         let schema = Schema([
             User.self, Repo.self, PullRequest.self, TimelineEvent.self,
             Reviewer.self, Label.self, CIRun.self, ViewerState.self, HTTPCache.self,
+            ReviewComment.self,
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [config])

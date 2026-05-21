@@ -143,6 +143,65 @@ actor SyncActor {
         try ctx.save()
     }
 
+    /// Upsert per-line review comments fetched from /pulls/{n}/comments.
+    /// `id` surrogate is `node_id` if present, else "RC_<integer>". Existing
+    /// rows have their body/path/line/diffHunk refreshed; `isSeen` and
+    /// `createdAt` are preserved. Anything previously stored for this PR
+    /// that isn't in the response is purged.
+    func upsertReviewComments(prID: String, fromDTOs comments: [ReviewCommentDTO]) throws {
+        let ctx = modelContext
+        guard let pr = prByID(prID, ctx: ctx) else { return }
+
+        var byID: [String: ReviewComment] = [:]
+        for c in pr.reviewComments { byID[c.id] = c }
+
+        var seenIDs: Set<String> = []
+        for dto in comments {
+            let cid = dto.node_id ?? "RC_\(dto.id)"
+            seenIDs.insert(cid)
+            let resolvedLine = dto.line ?? dto.original_line
+            let replyTo: String? = {
+                guard let r = dto.in_reply_to_id else { return nil }
+                // Match the same surrogate scheme used for ids. We assume the
+                // parent comment is in the same payload; if not, the link is
+                // best-effort.
+                if let parent = comments.first(where: { $0.id == r }) {
+                    return parent.node_id ?? "RC_\(r)"
+                }
+                return "RC_\(r)"
+            }()
+
+            if let existing = byID[cid] {
+                existing.body = dto.body
+                existing.path = dto.path
+                existing.line = resolvedLine
+                existing.diffHunk = dto.diff_hunk
+                existing.parentReviewIntegerID = dto.pull_request_review_id
+                existing.inReplyToID = replyTo
+                // isSeen and createdAt preserved deliberately.
+            } else {
+                let author = upsertUser(dto.user, ctx: ctx)
+                let comment = ReviewComment(
+                    id: cid,
+                    parentReviewIntegerID: dto.pull_request_review_id,
+                    inReplyToID: replyTo,
+                    author: author,
+                    body: dto.body,
+                    path: dto.path,
+                    line: resolvedLine,
+                    diffHunk: dto.diff_hunk,
+                    createdAt: dto.created_at,
+                    isSeen: false,
+                    pullRequest: pr)
+                ctx.insert(comment)
+            }
+        }
+        for c in pr.reviewComments where !seenIDs.contains(c.id) {
+            ctx.delete(c)
+        }
+        try ctx.save()
+    }
+
     func upsertTimeline(prID: String, items: [TimelineItemDTO]) throws {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
