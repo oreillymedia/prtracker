@@ -213,6 +213,9 @@ struct TimelineEventRow: View {
                     ReviewCommentThreadView(root: root, replies: replies, syncActor: syncActor)
                 }
             }
+            // Absorb taps so they don't bubble to the parent row's onTapGesture
+            // and silently toggle the parent review event's seen state.
+            .onTapGesture {}
         }
     }
 }
