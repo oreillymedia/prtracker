@@ -39,6 +39,8 @@ final class PullRequest {
     var labels: [Label] = []
     @Relationship(deleteRule: .cascade, inverse: \CIRun.pr)
     var ciChecks: [CIRun] = []
+    @Relationship(deleteRule: .cascade, inverse: \ReviewComment.pullRequest)
+    var reviewComments: [ReviewComment] = []
 
     var state: PRState {
         get { PRState(rawValue: stateRaw) ?? .open }
