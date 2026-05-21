@@ -44,9 +44,17 @@ final class PullRequest {
         get { PRState(rawValue: stateRaw) ?? .open }
         set { stateRaw = newValue.rawValue }
     }
+    /// Aggregate review state, derived from `reviewers`. Mirrors GitHub's
+    /// precedence: any changes-requested wins, else any approved, else any
+    /// commented, else pending if anyone is on the hook, else nil.
+    /// `reviewStateRaw` is retained on the schema for back-compat (no migration),
+    /// but only consulted if there are no reviewers at all.
     var reviewState: ReviewState? {
-        get { reviewStateRaw.flatMap(ReviewState.init(rawValue:)) }
-        set { reviewStateRaw = newValue?.rawValue }
+        if reviewers.contains(where: { $0.state == .changesRequested }) { return .changesRequested }
+        if reviewers.contains(where: { $0.state == .approved })         { return .approved }
+        if reviewers.contains(where: { $0.state == .commented })        { return .commented }
+        if !reviewers.isEmpty                                            { return .pending }
+        return reviewStateRaw.flatMap(ReviewState.init(rawValue:))
     }
     var mergeable: Mergeable {
         get { Mergeable(rawValue: mergeableRaw) ?? .unknown }
