@@ -36,7 +36,10 @@ struct PRDetailView: View {
                 DetailRightRail(pr: pr,
                     onMarkUnread: {
                         userMarkedUnread = true
-                        Task { try? await syncActor.setLastReadAt(prID: pr.id, date: nil) }
+                        Task {
+                            try? await syncActor.setSeenForPR(prID: pr.id, isSeen: false)
+                            try? await syncActor.setLastReadAt(prID: pr.id, date: nil)
+                        }
                     })
             }
         }
