@@ -9,6 +9,7 @@ final class TimelineEvent {
     var actor: User?
     var body: String?
     var sha: String?
+    var reviewID: Int?
     var reviewStateRaw: String?
     /// Local-only — never overwritten by sync.
     var isSeen: Bool

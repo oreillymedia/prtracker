@@ -165,6 +165,7 @@ actor SyncActor {
                 default: return .status
                 }
             }()
+            let parentReviewID: Int? = (typ == .review) ? dto.id : nil
             let actorUser = dto.effectiveActor.map { upsertUser($0, ctx: ctx) }
             let revState = dto.state.flatMap { ReviewState(rawValue: $0) }
             let effectiveAt = dto.effectiveDate
@@ -177,12 +178,14 @@ actor SyncActor {
                 if let at = effectiveAt { e.at = at }
                 if let s = dto.sha { e.sha = s }
                 e.reviewState = revState ?? e.reviewState
+                e.reviewID = parentReviewID ?? e.reviewID
                 // isSeen preserved deliberately
             } else {
                 let e = TimelineEvent(
                     id: id, type: typ, at: effectiveAt ?? .now,
                     pullRequest: pr, actor: actorUser,
                     body: effectiveBody, sha: dto.sha, reviewState: revState, isSeen: false)
+                e.reviewID = parentReviewID
                 ctx.insert(e)
             }
         }
