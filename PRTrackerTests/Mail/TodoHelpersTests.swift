@@ -8,14 +8,22 @@ import SwiftData
 
     /// Returns a persistent container plus a live ModelContext (kept alive by the tuple),
     /// plus the PR and viewer user — all from the same context so callers can add to them.
-    private func makePR(viewer: String = "alex", author: String = "dan",
-                        reviewState: ReviewState? = nil) throws -> (ModelContext, PullRequest, User) {
+    private func makePR(viewer: String = "alex", author: String = "dan") throws -> (ModelContext, PullRequest, User) {
         let container = try TestContainer.make()
         let ctx = ModelContext(container)
+        // When viewer == author, reuse the single User to avoid colliding on
+        // User.login's unique attribute.
         let viewerUser = User(login: viewer, name: nil, avatarURL: nil)
-        let authorUser = User(login: author, name: nil, avatarURL: nil)
+        ctx.insert(viewerUser)
+        let authorUser: User
+        if author == viewer {
+            authorUser = viewerUser
+        } else {
+            authorUser = User(login: author, name: nil, avatarURL: nil)
+            ctx.insert(authorUser)
+        }
         let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
-        ctx.insert(viewerUser); ctx.insert(authorUser); ctx.insert(repo)
+        ctx.insert(repo)
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let pr = PullRequest(id: "PR_1", number: 1, title: "T", state: .open,
                              branchHead: "h", branchBase: "main", headSha: "abc",
@@ -190,5 +198,19 @@ import SwiftData
         #expect(ts[0].kind == .prComment)
         #expect(ts[0].messages.count == 1)
         #expect(ts[0].location == "Discussion")
+    }
+
+    @Test func ballInMyCourt_myPR_changesRequested_true() throws {
+        // Viewer authored the PR; a reviewer requested changes; no open code
+        // comments. The changesRequested path of ballInMyCourt should still
+        // fire because the author owes a fix.
+        let (ctx, pr, viewer) = try makePR(viewer: "alex", author: "alex")
+        let bob = User(login: "bob", name: nil, avatarURL: nil)
+        ctx.insert(bob)
+        let reviewer = Reviewer(user: bob, state: .changesRequested, pr: pr)
+        ctx.insert(reviewer)
+        pr.reviewers.append(reviewer)
+        try ctx.save()
+        #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == true)
     }
 }
