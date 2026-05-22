@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct MailListView: View {
+    @Environment(\.modelContext) private var ctx
     @Environment(AppState.self) private var appState
     @Query(sort: [SortDescriptor(\PullRequest.updatedAt, order: .reverse)])
     private var prs: [PullRequest]
@@ -9,12 +10,12 @@ struct MailListView: View {
 
     let syncActor: SyncActor
 
+    private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
+
     var body: some View {
         @Bindable var appState = appState
-        let viewerLogin = viewerStates.first?.viewer?.login ?? ""
-        let buckets = grouped(viewerLogin: viewerLogin)
-        let counts = counts(from: buckets)
-        let visible = visiblePRs(buckets: buckets, filter: appState.activeFilter)
+        let counts = pillCounts()
+        let visible = visiblePRs(filter: appState.activeFilter)
 
         VStack(spacing: 0) {
             FilterPillBar(active: $appState.activeFilter, counts: counts)
@@ -29,83 +30,71 @@ struct MailListView: View {
                         .listRowSeparator(.hidden)
                 } else {
                     ForEach(visible) { pr in
-                        MailRowView(
-                            pr: pr,
-                            isSelected: appState.selectedPRID == pr.id,
-                            onToggleRead: { toggleRead(pr) }
-                        )
-                        .tag(pr.id)
-                        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                        MailRowView(pr: pr,
+                                    isSelected: appState.selectedPRID == pr.id,
+                                    viewerLogin: viewerLogin)
+                            .tag(pr.id)
+                            .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
+        .onChange(of: appState.selectedPRID) { _, newID in
+            // Update lastReadAt on the newly selected PR (semantically: lastSeenAt).
+            guard let newID, let pr = prs.first(where: { $0.id == newID }) else { return }
+            pr.lastReadAt = .now
+            try? ctx.save()
+        }
         .onChange(of: appState.activeFilter) { _, newFilter in
-            let freshBuckets = grouped(viewerLogin: viewerStates.first?.viewer?.login ?? "")
-            reconcileSelection(visiblePRs: visiblePRs(buckets: freshBuckets, filter: newFilter))
+            let ids = visiblePRs(filter: newFilter).map(\.id)
+            appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
         }
     }
 
-    private func grouped(viewerLogin: String) -> [Section: [PullRequest]] {
-        var out: [Section: [PullRequest]] = [:]
-        let now = Date.now
-        let mentionedIDs = Set(prs.compactMap { $0.mentionHint != nil ? $0.id : nil })
-        for pr in prs {
-            let input = ClassifierInput.PR(
-                id: pr.id, number: pr.number, authorLogin: pr.author.login,
-                state: pr.state == .closed || pr.state == .merged ? "closed" : "open",
-                mergedAt: pr.mergedAt,
-                requestedReviewerLogins: pr.reviewers.filter { $0.state == .pending }.map(\.user.login),
-                reviewerStates: pr.reviewers.map { ($0.user.login, $0.stateRaw) },
-                ciFail: pr.ciFail, ciRunning: pr.ciRunning,
-                commenterLogins: pr.timeline.compactMap { $0.type == .comment ? $0.actor?.login : nil },
-                updatedAt: pr.updatedAt)
-            if let s = Classifier.section(for: input, viewer: viewerLogin, mentions: mentionedIDs, now: now) {
-                out[s, default: []].append(pr)
-            }
+    // MARK: - Filter predicates
+
+    private func matches(_ pr: PullRequest, filter: MailFilter) -> Bool {
+        switch filter {
+        case .all:
+            return true
+        case .awaitingMe:
+            return TodoHelpers.ballInMyCourt(pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+        case .open:
+            return pr.state == .open
+                && TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt).open > 0
+        case .mentions:
+            return pr.mentionHint != nil
+        case .mine:
+            return pr.author.login == viewerLogin && pr.state == .open
+        case .done:
+            let counts = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+            return pr.state == .open && counts.total > 0 && counts.open == 0
+        case .recent:
+            return pr.state == .merged
         }
-        return out
     }
 
-    private func counts(from buckets: [Section: [PullRequest]]) -> [MailFilter: Int] {
+    private func visiblePRs(filter: MailFilter) -> [PullRequest] {
+        prs.filter { matches($0, filter: filter) }
+           .sorted(by: ballInMyCourtFirst)
+    }
+
+    private func ballInMyCourtFirst(_ a: PullRequest, _ b: PullRequest) -> Bool {
+        let aw = TodoHelpers.ballInMyCourt(a, viewerLogin: viewerLogin, lastSeenAt: a.lastSeenAt) ? 0 : 1
+        let bw = TodoHelpers.ballInMyCourt(b, viewerLogin: viewerLogin, lastSeenAt: b.lastSeenAt) ? 0 : 1
+        if aw != bw { return aw < bw }
+        return a.updatedAt > b.updatedAt
+    }
+
+    private func pillCounts() -> [MailFilter: Int] {
         var c: [MailFilter: Int] = [:]
-        var total = 0
-        for filter in MailFilter.allCases where filter != .all {
-            if let s = filter.section {
-                let n = buckets[s]?.count ?? 0
-                c[filter] = n
-                total += n
-            }
+        for filter in MailFilter.allCases {
+            c[filter] = prs.filter { matches($0, filter: filter) }.count
         }
-        c[.all] = total
         return c
-    }
-
-    private func visiblePRs(buckets: [Section: [PullRequest]], filter: MailFilter) -> [PullRequest] {
-        if let s = filter.section { return buckets[s] ?? [] }
-        var seen = Set<String>(); var out: [PullRequest] = []
-        for s in Section.allCases {
-            for pr in buckets[s] ?? [] where !seen.contains(pr.id) {
-                seen.insert(pr.id); out.append(pr)
-            }
-        }
-        return out.sorted { $0.updatedAt > $1.updatedAt }
-    }
-
-    private func reconcileSelection(visiblePRs: [PullRequest]) {
-        let ids = visiblePRs.map(\.id)
-        appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
-    }
-
-    private func toggleRead(_ pr: PullRequest) {
-        let id = pr.id
-        let wasUnread = pr.isUnread
-        Task {
-            try? await syncActor.setLastReadAt(prID: id, date: wasUnread ? .now : nil)
-        }
     }
 }

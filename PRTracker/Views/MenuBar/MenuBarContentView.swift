@@ -56,7 +56,9 @@ struct MenuBarContentView: View {
     // MARK: - Compressed PR row
 
     private func prRow(_ pr: PullRequest) -> some View {
-        Button {
+        let viewerLogin = viewerStates.first?.viewer?.login ?? ""
+        let hasOpenTodos = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt).open > 0
+        return Button {
             appState.selectedPRID = pr.id
             openWindow(id: "main")
         } label: {
@@ -64,12 +66,11 @@ struct MenuBarContentView: View {
                 Rectangle()
                     .fill(laneColor(for: pr))
                     .frame(width: 3)
-                    .opacity(pr.isUnread ? 1 : 0.5)
+                    .opacity(hasOpenTodos ? 1 : 0.5)
 
                 HStack(spacing: 7) {
-                    UnreadDot(on: pr.isUnread)
                     Text(pr.title)
-                        .font(.system(size: 12, weight: pr.isUnread ? .bold : .medium))
+                        .font(.system(size: 12, weight: hasOpenTodos ? .bold : .medium))
                         .foregroundStyle(Tokens.text)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -81,7 +82,7 @@ struct MenuBarContentView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
             }
-            .opacity(pr.isUnread ? 1 : 0.62)
+            .opacity(hasOpenTodos ? 1 : 0.62)
         }
         .buttonStyle(.plain)
     }

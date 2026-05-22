@@ -68,12 +68,6 @@ final class PullRequest {
         set { mergeableRaw = newValue.rawValue }
     }
 
-    /// A PR is unread iff it's never been read, or its `updatedAt` is newer than the last read time.
-    var isUnread: Bool {
-        guard let lastReadAt else { return true }
-        return updatedAt > lastReadAt
-    }
-
     init(id: String, number: Int, title: String, state: PRState, branchHead: String, branchBase: String, headSha: String, openedAt: Date, updatedAt: Date, author: User, repo: Repo) {
         self.id = id
         self.number = number
