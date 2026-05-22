@@ -28,6 +28,11 @@ final class PullRequest {
     var involvedHint: String?
     var lastReadAt: Date?
 
+    /// Semantically: the most recent moment the user selected this PR's row.
+    /// Backed by the same column as `lastReadAt` to avoid a SwiftData
+    /// migration. New code reads `lastSeenAt`; legacy code reads `lastReadAt`.
+    var lastSeenAt: Date? { lastReadAt }
+
     var author: User
     var repo: Repo
 
