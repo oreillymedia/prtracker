@@ -25,6 +25,11 @@ struct ThreadCard: View {
             header
             if !collapsed {
                 Divider().background(Tokens.hairline)
+                if let hunk = thread.diffHunk {
+                    diffHunkBlock(hunk)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 10)
+                }
                 ForEach(thread.messages) { msg in
                     ThreadMessageRow(message: msg, onToggleDone: { onToggleMessageDone(msg) })
                 }
@@ -138,5 +143,31 @@ struct ThreadCard: View {
                 .overlay(Rectangle().fill(Tokens.hairline).frame(height: 0.5), alignment: .top)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Renders the diff_hunk snippet (the GitHub-style code excerpt that
+    /// anchors a code-comment thread) as a monospaced block with +/- line coloring.
+    private func diffHunkBlock(_ hunk: String) -> some View {
+        let lines = hunk.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.system(size: 11).monospaced())
+                    .foregroundStyle(diffLineColor(line))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Tokens.hairline, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
+    }
+
+    private func diffLineColor(_ line: String) -> Color {
+        let first = line.first
+        if first == "+" { return Tokens.approved }
+        if first == "-" { return Tokens.changes }
+        if line.hasPrefix("@@") { return Tokens.accent }
+        return Tokens.textMuted
     }
 }

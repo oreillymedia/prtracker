@@ -17,7 +17,19 @@ struct Thread: Identifiable, Equatable {
     let kind: ThreadKind
     let location: String
     let kindLabel: String?
+    /// Diff context for a code-anchored thread (set only when `kind == .reviewComment`).
+    let diffHunk: String?
     let messages: [ThreadMessage]
+
+    init(id: String, kind: ThreadKind, location: String, kindLabel: String?,
+         diffHunk: String? = nil, messages: [ThreadMessage]) {
+        self.id = id
+        self.kind = kind
+        self.location = location
+        self.kindLabel = kindLabel
+        self.diffHunk = diffHunk
+        self.messages = messages
+    }
 }
 
 struct ThreadMessage: Identifiable, Equatable {
@@ -64,8 +76,10 @@ enum TodoHelpers {
             }
             let kindLabel = originReviewKindLabel(reviewIntegerID: root.parentReviewIntegerID, in: pr)
             let location = root.line.map { "\(root.path) L\($0)" } ?? root.path
+            let hunk = root.diffHunk.isEmpty ? nil : root.diffHunk
             out.append(Thread(id: "rc_\(root.id)", kind: .reviewComment,
-                              location: location, kindLabel: kindLabel, messages: messages))
+                              location: location, kindLabel: kindLabel,
+                              diffHunk: hunk, messages: messages))
         }
 
         return out.sorted { ($0.messages.last?.createdAt ?? .distantPast) > ($1.messages.last?.createdAt ?? .distantPast) }
