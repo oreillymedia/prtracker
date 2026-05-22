@@ -26,7 +26,7 @@ struct PRDetailView: View {
                 lastUpdatedAt: pr.updatedAt,
                 onRefresh: { Task { await loadTimeline() } },
                 todoCounts: todoCounts)
-            HStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         if let loadError {
@@ -67,9 +67,14 @@ struct PRDetailView: View {
             try await syncActor.updatePRStatistics(prID: prID, dto: detail)
             try await syncActor.upsertCIChecks(prID: prID, dto: checks)
             loadError = nil
+        } catch is CancellationError {
+            // .task replaced before we finished; new task will reload — don't surface.
         } catch let e as GitHubError {
+            // Some networking layers wrap cancellation as a `.network(message: "cancelled")`.
+            if case .network(let msg) = e, msg.lowercased().contains("cancel") { return }
             loadError = e
         } catch {
+            if error.localizedDescription.lowercased().contains("cancel") { return }
             loadError = .network(message: error.localizedDescription)
         }
     }

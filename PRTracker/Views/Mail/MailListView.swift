@@ -64,8 +64,11 @@ struct MailListView: View {
         case .awaitingMe:
             return TodoHelpers.ballInMyCourt(pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
         case .open:
-            return pr.state == .open
-                && TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt).open > 0
+            // GitHub-style "open": PR is not merged/closed. Source-list rows
+            // don't have full thread data (timeline + reviewComments are
+            // lazy-fetched on detail open), so the stricter "has unresolved
+            // threads" check would falsely exclude most PRs.
+            return pr.state == .open || pr.state == .draft
         case .mentions:
             return pr.mentionHint != nil
         case .mine:
