@@ -3,6 +3,7 @@ import SwiftData
 
 struct PRDetailView: View {
     @Environment(\.modelContext) private var ctx
+    @Query private var viewerStates: [ViewerState]
     let pr: PullRequest
     let viewer: User?
     let client: GitHubClient
@@ -10,14 +11,21 @@ struct PRDetailView: View {
 
     @State private var loadError: GitHubError?
     @State private var isLoading: Bool = false
-    /// Set when the user clicks "Mark as unread" during the detail-load
-    /// window. Prevents the trailing setLastReadAt(.now) in `.task` from
-    /// clobbering the user's intent.
-    @State private var userMarkedUnread: Bool = false
+
+    private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
+
+    private var todoCounts: TodoCounts {
+        TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            MailDetailHeader(
+                pr: pr,
+                isRefreshing: isLoading,
+                lastUpdatedAt: pr.updatedAt,
+                onRefresh: { Task { await loadTimeline() } },
+                todoCounts: todoCounts)
             HStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -26,60 +34,15 @@ struct PRDetailView: View {
                                 .foregroundStyle(Tokens.changes).padding(8)
                                 .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                         }
-                        TimelineColumn(
-                            events: pr.timeline,
-                            reviewComments: pr.reviewComments,
-                            syncActor: syncActor,
-                            onTapEvent: { e in Task { try? await syncActor.setSeen(eventID: e.id, isSeen: !e.isSeen) } },
-                            onMarkUpToHere: { e in Task { try? await syncActor.setSeenUpTo(prID: pr.id, throughEventID: e.id) } })
-                        QuickReply(viewer: viewer)
+                        ThreadsView(pr: pr, viewerLogin: viewerLogin, syncActor: syncActor)
                     }.padding(20)
                 }
-                DetailRightRail(pr: pr,
-                    onToggleReadState: { toggleReadStateOnMainContext() })
+                DetailRightRail(pr: pr)
             }
         }
         .task(id: pr.id) {
-            userMarkedUnread = false
             await loadTimeline()
-            try? await syncActor.setSeenForPR(prID: pr.id, isSeen: true)
-            if !userMarkedUnread {
-                try? await syncActor.setLastReadAt(prID: pr.id, date: .now)
-            }
         }
-    }
-
-    /// Toggle the PR's read state by mutating the main context's models
-    /// directly. Going through SyncActor would write on a different context
-    /// and rely on cross-context propagation, which doesn't refresh the
-    /// live view until it's recreated.
-    private func toggleReadStateOnMainContext() {
-        if pr.isUnread {
-            // Mark as read: clear unread + dim all events/comments.
-            pr.lastReadAt = .now
-            for e in pr.timeline { e.isSeen = true }
-            for c in pr.reviewComments { c.isSeen = true }
-            // Suppress no trailing .task write; nothing further to gate.
-        } else {
-            // Mark as unread: restore the unseen state and block the
-            // trailing setLastReadAt(.now) in `.task` from clobbering this
-            // during initial load.
-            userMarkedUnread = true
-            pr.lastReadAt = nil
-            for e in pr.timeline { e.isSeen = false }
-            for c in pr.reviewComments { c.isSeen = false }
-        }
-        try? ctx.save()
-    }
-
-    @ViewBuilder
-    private var header: some View {
-        MailDetailHeader(
-            pr: pr,
-            isRefreshing: isLoading,
-            lastUpdatedAt: pr.updatedAt,
-            onRefresh: { Task { await loadTimeline() } }
-        )
     }
 
     private func loadTimeline() async {

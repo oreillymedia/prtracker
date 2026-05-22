@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DetailRightRail: View {
     let pr: PullRequest
-    var onToggleReadState: () -> Void
 
     @State private var showCIDetails: Bool = false
 
@@ -39,18 +38,6 @@ struct DetailRightRail: View {
                     Text("· \(pr.changedFiles) files").foregroundStyle(Tokens.textFaint)
                 }.font(.system(size: 12))
             }
-            Spacer()
-            Button {
-                onToggleReadState()
-            } label: {
-                Text(pr.isUnread ? "Mark as read" : "Mark as unread")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
         }
         .padding(18)
         .frame(width: 260)
