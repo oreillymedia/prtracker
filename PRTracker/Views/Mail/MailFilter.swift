@@ -1,40 +1,32 @@
 import Foundation
 import SwiftUI
 
-/// Filter pills shown across the top of the source list. `all` aggregates everything;
-/// every other case corresponds 1:1 to a `Section` produced by `Classifier`.
+/// Filter pills shown across the top of the source list.
 enum MailFilter: String, CaseIterable, Identifiable, Codable {
-    case all, attention, review, mentions, mine, involved, recent
+    case all, awaitingMe, open, mentions, mine, done, recent
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .all:       "All"
-        case .attention: "Attention"
-        case .review:    "Review"
-        case .mentions:  "Mentions"
-        case .mine:      "Mine"
-        case .involved:  "Involved"
-        case .recent:    "Merged"
+        case .all:        "All"
+        case .awaitingMe: "Awaiting me"
+        case .open:       "Open"
+        case .mentions:   "Mentions"
+        case .mine:       "Mine"
+        case .done:       "Done"
+        case .recent:     "Merged"
         }
     }
 
-    /// The `Section` this filter selects, or `nil` for `.all`.
-    var section: Section? {
-        switch self {
-        case .all:       nil
-        case .attention: .attention
-        case .review:    .review
-        case .mentions:  .mentions
-        case .mine:      .mine
-        case .involved:  .involved
-        case .recent:    .recent
-        }
-    }
-
-    /// Dot color rendered on the pill (and on the row's priority rail).
-    /// Hidden on `.all`.
+    /// Lane color for the pill dot. `.all`, `.open`, and `.done` have no dot
+    /// (they're todo-state filters, not bucket-color filters).
     var dotColor: Color? {
-        section?.lane.color
+        switch self {
+        case .awaitingMe: Lane.attention.color
+        case .mentions:   Lane.mentions.color
+        case .mine:       Lane.mine.color
+        case .recent:     Lane.recent.color
+        case .all, .open, .done: nil
+        }
     }
 }
