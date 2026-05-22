@@ -13,6 +13,9 @@ final class TimelineEvent {
     var reviewStateRaw: String?
     /// Local-only — never overwritten by sync.
     var isSeen: Bool
+    /// Local-only — never overwritten by sync. True when the user has marked
+    /// this comment-style event as addressed. Only meaningful for `type == .comment`.
+    var isDone: Bool = false
 
     var pullRequest: PullRequest
 

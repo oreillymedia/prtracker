@@ -14,6 +14,9 @@ final class ReviewComment {
     var createdAt: Date
     /// Local-only — never overwritten by sync.
     var isSeen: Bool
+    /// Local-only — never overwritten by sync. True when the user has marked
+    /// this code-comment message as addressed.
+    var isDone: Bool = false
     var pullRequest: PullRequest
 
     init(id: String, parentReviewIntegerID: Int?, inReplyToID: String?, author: User,
