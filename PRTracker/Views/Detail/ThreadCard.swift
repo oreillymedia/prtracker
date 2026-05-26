@@ -89,7 +89,7 @@ struct ThreadCard: View {
                 Text(label.uppercased())
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.5)
-                    .foregroundStyle(label == "Changes requested" ? Tokens.changes : Tokens.textMuted)
+                    .foregroundStyle(kindLabelColor(label))
                 Text("·").foregroundStyle(Tokens.textFaint)
             }
             Text(thread.location)
@@ -169,5 +169,13 @@ struct ThreadCard: View {
         if first == "-" { return Tokens.changes }
         if line.hasPrefix("@@") { return Tokens.accent }
         return Tokens.textMuted
+    }
+
+    private func kindLabelColor(_ label: String) -> Color {
+        switch label {
+        case "Changes requested": return Tokens.changes
+        case "Approved":          return Tokens.approved
+        default:                  return Tokens.textMuted
+        }
     }
 }

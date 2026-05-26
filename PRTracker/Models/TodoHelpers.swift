@@ -64,6 +64,22 @@ enum TodoHelpers {
                               location: "Discussion", kindLabel: nil, messages: [msg]))
         }
 
+        // Review-summary threads: the message attached to an Approve /
+        // Changes-Requested / Comment review action (separate from the
+        // per-line code comments under the same review).
+        for e in pr.timeline where e.type == .review && !(e.body ?? "").isEmpty {
+            guard let msg = makeMessage(timelineEvent: e, viewerLogin: viewerLogin, lastSeenAt: lastSeenAt) else { continue }
+            let kindLabel: String? = {
+                switch e.reviewState {
+                case .approved:         return "Approved"
+                case .changesRequested: return "Changes requested"
+                case .commented, .pending, .none: return nil
+                }
+            }()
+            out.append(Thread(id: "rv_\(e.id)", kind: .prComment,
+                              location: "Discussion", kindLabel: kindLabel, messages: [msg]))
+        }
+
         // Review-comment threads: group by parent review id + chain replies.
         let comments = pr.reviewComments
         let roots = comments.filter { $0.inReplyToID == nil }
