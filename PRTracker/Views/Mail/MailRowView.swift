@@ -22,6 +22,9 @@ struct MailRowView: View {
     private var bucket: Section? {
         if pr.state == .merged { return .recent }
         if awaitingMe { return .attention }
+        if pr.reviewers.contains(where: { $0.state == .pending && $0.user.login == viewerLogin }) {
+            return .review
+        }
         if pr.author.login == viewerLogin && pr.state == .open { return .mine }
         if pr.mentionHint != nil { return .mentions }
         return .involved

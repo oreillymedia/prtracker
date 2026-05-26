@@ -10,7 +10,7 @@ struct ThreadsView: View {
     @State private var resolvedCollapsed: Bool = true
 
     private var threads: [Thread] {
-        TodoHelpers.threads(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastReadAt)
+        TodoHelpers.threads(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
     }
 
     var body: some View {

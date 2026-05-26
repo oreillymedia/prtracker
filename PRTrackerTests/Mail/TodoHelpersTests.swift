@@ -165,6 +165,16 @@ import SwiftData
         #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == false)
     }
 
+    @Test func ballInMyCourt_closedPR_alwaysFalse() throws {
+        // Even with open non-mine messages, a closed PR can't be ball-in-court.
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        _ = makeReviewComment(in: pr, ctx: ctx, id: "RC1", author: other)
+        pr.state = .closed
+        try ctx.save()
+        #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == false)
+    }
+
     // MARK: - Thread derivation
 
     @Test func threads_buildsReviewCommentChain() throws {
@@ -198,6 +208,37 @@ import SwiftData
         #expect(ts[0].kind == .prComment)
         #expect(ts[0].messages.count == 1)
         #expect(ts[0].location == "Discussion")
+    }
+
+    @Test func threads_buildsReviewSummaryThread_approved() throws {
+        // A .review event with body "LGTM" + state .approved becomes a thread
+        // labeled "Approved".
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let event = TimelineEvent(id: "TE_REV", type: .review, at: .distantPast,
+                                  pullRequest: pr, actor: other, body: "LGTM",
+                                  reviewState: .approved)
+        ctx.insert(event)
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.count == 1)
+        #expect(ts[0].kindLabel == "Approved")
+        #expect(ts[0].messages.first?.body == "LGTM")
+    }
+
+    @Test func threads_skipsReviewEventWithEmptyBody() throws {
+        // A .review event with no body shouldn't produce a thread.
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let event = TimelineEvent(id: "TE_REV", type: .review, at: .distantPast,
+                                  pullRequest: pr, actor: other, body: nil,
+                                  reviewState: .approved)
+        ctx.insert(event)
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.isEmpty)
     }
 
     @Test func ballInMyCourt_myPR_changesRequested_true() throws {
