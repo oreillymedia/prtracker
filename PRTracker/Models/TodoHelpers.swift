@@ -101,15 +101,15 @@ enum TodoHelpers {
         return out.sorted { ($0.messages.last?.createdAt ?? .distantPast) > ($1.messages.last?.createdAt ?? .distantPast) }
     }
 
-    static func isResolved(_ thread: Thread) -> Bool {
+    nonisolated static func isResolved(_ thread: Thread) -> Bool {
         thread.messages.allSatisfy { $0.isMine || $0.isDone }
     }
 
-    static func hasNew(_ thread: Thread) -> Bool {
+    nonisolated static func hasNew(_ thread: Thread) -> Bool {
         thread.messages.contains { !$0.isMine && !$0.isDone && $0.isNew }
     }
 
-    static func openCount(_ thread: Thread) -> Int {
+    nonisolated static func openCount(_ thread: Thread) -> Int {
         thread.messages.filter { !$0.isMine && !$0.isDone }.count
     }
 

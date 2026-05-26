@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-struct Keychain {
+nonisolated struct Keychain {
     let service: String
     let account: String
 

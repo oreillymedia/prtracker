@@ -4,7 +4,7 @@ import Foundation
 
 @Suite struct MailFilterTests {
     @Test func allCasesInOrder() {
-        #expect(MailFilter.allCases == [.all, .awaitingMe, .open, .mentions, .mine, .done, .recent])
+        #expect(MailFilter.allCases == [.awaitingMe, .mine, .open, .all, .mentions, .done, .recent])
     }
 
     @Test func displayLabels() {

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Filter pills shown across the top of the source list.
 enum MailFilter: String, CaseIterable, Identifiable, Codable {
-    case all, awaitingMe, open, mentions, mine, done, recent
+    case awaitingMe, mine, open, all, mentions, done, recent
     var id: String { rawValue }
 
     var label: String {

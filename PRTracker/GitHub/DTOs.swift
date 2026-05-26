@@ -1,16 +1,16 @@
 import Foundation
 
-struct UserDTO: Decodable, Equatable {
+nonisolated struct UserDTO: Decodable, Equatable {
     let login: String
     let name: String?
     let avatar_url: URL?
 }
 
-struct LabelDTO: Decodable, Equatable {
+nonisolated struct LabelDTO: Decodable, Equatable {
     let name: String
 }
 
-struct PullRequestDTO: Decodable {
+nonisolated struct PullRequestDTO: Decodable {
     let node_id: String
     let number: Int
     let title: String
@@ -30,12 +30,12 @@ struct PullRequestDTO: Decodable {
     let requested_reviewers: [UserDTO]?
 }
 
-struct RefDTO: Decodable {
+nonisolated struct RefDTO: Decodable {
     let ref: String
     let sha: String
 }
 
-struct CheckRunDTO: Decodable {
+nonisolated struct CheckRunDTO: Decodable {
     let name: String
     let status: String                // "queued" | "in_progress" | "completed"
     let conclusion: String?           // "success" | "failure" | "neutral" | "cancelled" | "timed_out" | "action_required"
@@ -43,12 +43,12 @@ struct CheckRunDTO: Decodable {
     let completed_at: Date?
 }
 
-struct CheckRunsResponseDTO: Decodable {
+nonisolated struct CheckRunsResponseDTO: Decodable {
     let total_count: Int
     let check_runs: [CheckRunDTO]
 }
 
-struct ReviewDTO: Decodable {
+nonisolated struct ReviewDTO: Decodable {
     let id: Int
     let user: UserDTO
     let state: String                 // "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING"
@@ -56,7 +56,7 @@ struct ReviewDTO: Decodable {
     let submitted_at: Date?
 }
 
-struct CommentDTO: Decodable {
+nonisolated struct CommentDTO: Decodable {
     let id: Int
     let user: UserDTO
     let body: String
@@ -64,7 +64,7 @@ struct CommentDTO: Decodable {
     let updated_at: Date
 }
 
-struct ReviewCommentDTO: Decodable {
+nonisolated struct ReviewCommentDTO: Decodable {
     let id: Int
     let node_id: String?
     let pull_request_review_id: Int?
@@ -79,7 +79,7 @@ struct ReviewCommentDTO: Decodable {
     let updated_at: Date
 }
 
-struct TimelineItemDTO: Decodable {
+nonisolated struct TimelineItemDTO: Decodable {
     let event: String                 // "commented" | "reviewed" | "committed" | "labeled" | ...
     let id: Int?
     let node_id: String?
@@ -129,13 +129,13 @@ struct TimelineItemDTO: Decodable {
     }
 }
 
-struct GitAuthorDTO: Decodable, Equatable {
+nonisolated struct GitAuthorDTO: Decodable, Equatable {
     let name: String?
     let email: String?
     let date: Date?
 }
 
-struct NotificationDTO: Decodable {
+nonisolated struct NotificationDTO: Decodable {
     let id: String
     let reason: String                // "mention" | "review_requested" | "comment" | ...
     let updated_at: Date
