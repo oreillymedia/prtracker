@@ -20,15 +20,19 @@ struct Thread: Identifiable, Equatable {
     /// Diff context for a code-anchored thread (set only when `kind == .reviewComment`).
     let diffHunk: String?
     let messages: [ThreadMessage]
+    /// Direct link to this discussion on GitHub. Nil only if we couldn't
+    /// construct an anchor (e.g. legacy row with no numeric DB id yet).
+    let githubURL: URL?
 
     init(id: String, kind: ThreadKind, location: String, kindLabel: String?,
-         diffHunk: String? = nil, messages: [ThreadMessage]) {
+         diffHunk: String? = nil, messages: [ThreadMessage], githubURL: URL? = nil) {
         self.id = id
         self.kind = kind
         self.location = location
         self.kindLabel = kindLabel
         self.diffHunk = diffHunk
         self.messages = messages
+        self.githubURL = githubURL
     }
 }
 
@@ -56,12 +60,16 @@ enum TodoHelpers {
 
     static func threads(for pr: PullRequest, viewerLogin: String, lastSeenAt: Date?) -> [Thread] {
         var out: [Thread] = []
+        let prURL = "https://github.com/\(pr.repo.id)/pull/\(pr.number)"
 
         // PR-comment threads: top-level TimelineEvents of type .comment, one message each.
         for e in pr.timeline where e.type == .comment {
             guard let msg = makeMessage(timelineEvent: e, viewerLogin: viewerLogin, lastSeenAt: lastSeenAt) else { continue }
+            let url = e.numericID.flatMap { URL(string: "\(prURL)#issuecomment-\($0)") }
+                ?? URL(string: prURL)
             out.append(Thread(id: "te_\(e.id)", kind: .prComment,
-                              location: "Discussion", kindLabel: nil, messages: [msg]))
+                              location: "Discussion", kindLabel: nil,
+                              messages: [msg], githubURL: url))
         }
 
         // Review-summary threads: the message attached to an Approve /
@@ -76,8 +84,11 @@ enum TodoHelpers {
                 case .commented, .pending, .none: return nil
                 }
             }()
+            let url = e.reviewID.flatMap { URL(string: "\(prURL)#pullrequestreview-\($0)") }
+                ?? URL(string: prURL)
             out.append(Thread(id: "rv_\(e.id)", kind: .prComment,
-                              location: "Discussion", kindLabel: kindLabel, messages: [msg]))
+                              location: "Discussion", kindLabel: kindLabel,
+                              messages: [msg], githubURL: url))
         }
 
         // Review-comment threads: group by parent review id + chain replies.
@@ -93,9 +104,11 @@ enum TodoHelpers {
             let kindLabel = originReviewKindLabel(reviewIntegerID: root.parentReviewIntegerID, in: pr)
             let location = root.line.map { "\(root.path) L\($0)" } ?? root.path
             let hunk = root.diffHunk.isEmpty ? nil : root.diffHunk
+            let url = root.numericID.flatMap { URL(string: "\(prURL)#discussion_r\($0)") }
+                ?? URL(string: prURL)
             out.append(Thread(id: "rc_\(root.id)", kind: .reviewComment,
                               location: location, kindLabel: kindLabel,
-                              diffHunk: hunk, messages: messages))
+                              diffHunk: hunk, messages: messages, githubURL: url))
         }
 
         return out.sorted { ($0.messages.last?.createdAt ?? .distantPast) > ($1.messages.last?.createdAt ?? .distantPast) }

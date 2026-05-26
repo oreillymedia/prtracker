@@ -10,6 +10,11 @@ final class TimelineEvent {
     var body: String?
     var sha: String?
     var reviewID: Int?
+    /// GitHub's numeric database ID for the underlying issue-comment / commit /
+    /// review event. Used to build per-thread anchor URLs (e.g.
+    /// `#issuecomment-<id>`). May be nil for rows synced before this column
+    /// existed; resync repopulates.
+    var numericID: Int?
     var reviewStateRaw: String?
     /// Local-only — never overwritten by sync.
     var isSeen: Bool

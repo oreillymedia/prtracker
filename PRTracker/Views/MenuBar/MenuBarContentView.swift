@@ -43,7 +43,10 @@ struct MenuBarContentView: View {
             Divider()
             menuButton("Open PR Tracker", shortcut: nil) { openWindow(id: "main") }
             menuButton("Refresh now", shortcut: "⌘R") { Task { await coordinator.refresh() } }
-            menuButton("Preferences…", shortcut: "⌘,") { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
+            SettingsLink {
+                menuButtonLabel("Preferences…", shortcut: "⌘,")
+            }
+            .buttonStyle(.plain)
             Divider()
             menuButton("Quit", shortcut: "⌘Q") { NSApplication.shared.terminate(nil) }
         }
@@ -117,13 +120,17 @@ struct MenuBarContentView: View {
 
     private func menuButton(_ label: String, shortcut: String?, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack {
-                Text(label).font(.system(size: 12))
-                Spacer()
-                if let s = shortcut { Text(s).microText().foregroundStyle(Tokens.textMuted) }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            menuButtonLabel(label, shortcut: shortcut)
         }.buttonStyle(.plain)
+    }
+
+    private func menuButtonLabel(_ label: String, shortcut: String?) -> some View {
+        HStack {
+            Text(label).font(.system(size: 12))
+            Spacer()
+            if let s = shortcut { Text(s).microText().foregroundStyle(Tokens.textMuted) }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
     }
 
     // MARK: - Grouping

@@ -19,29 +19,45 @@ struct MailListView: View {
 
         VStack(spacing: 0) {
             FilterPillBar(active: $appState.activeFilter, counts: counts)
-            List(selection: $appState.selectedPRID) {
+            ScrollView {
                 if visible.isEmpty {
                     Text("Nothing in this filter.")
                         .font(.system(size: 12.5).italic())
                         .foregroundStyle(Tokens.textFaint)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 40)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
                 } else {
-                    ForEach(visible) { pr in
-                        MailRowView(pr: pr,
-                                    isSelected: appState.selectedPRID == pr.id,
-                                    viewerLogin: viewerLogin)
-                            .tag(pr.id)
-                            .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                    LazyVStack(spacing: 0) {
+                        ForEach(visible) { pr in
+                            Button {
+                                appState.selectedPRID = pr.id
+                            } label: {
+                                MailRowView(pr: pr,
+                                            isSelected: appState.selectedPRID == pr.id,
+                                            viewerLogin: viewerLogin)
+                                    .background(appState.selectedPRID == pr.id ? Tokens.rowSelect : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress(.upArrow)   { moveSelection(by: -1, in: visible); return .handled }
+            .onKeyPress(.downArrow) { moveSelection(by:  1, in: visible); return .handled }
+        }
+        .onAppear {
+            // Clear a restored selection that no longer maps to a known PR
+            // (the row was deleted between runs).
+            //
+            // Assumption: SwiftData's `@Query` materializes synchronously
+            // against the on-disk store before this view body, so `prs` is
+            // populated by the time `onAppear` fires. PRTrackerApp constructs
+            // its ModelContainer eagerly, so this holds in practice.
+            if let id = appState.selectedPRID, !prs.contains(where: { $0.id == id }) {
+                appState.selectedPRID = nil
+            }
         }
         .onChange(of: appState.selectedPRID) { _, newID in
             // Update lastReadAt on the newly selected PR (semantically: lastSeenAt).
@@ -99,5 +115,19 @@ struct MailListView: View {
             c[filter] = prs.filter { matches($0, filter: filter) }.count
         }
         return c
+    }
+
+    // MARK: - Keyboard navigation
+
+    private func moveSelection(by delta: Int, in visible: [PullRequest]) {
+        guard !visible.isEmpty else { return }
+        let ids = visible.map(\.id)
+        guard let current = appState.selectedPRID,
+              let idx = ids.firstIndex(of: current) else {
+            appState.selectedPRID = delta > 0 ? ids.first : ids.last
+            return
+        }
+        let next = max(0, min(ids.count - 1, idx + delta))
+        appState.selectedPRID = ids[next]
     }
 }

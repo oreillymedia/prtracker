@@ -254,4 +254,59 @@ import SwiftData
         try ctx.save()
         #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == true)
     }
+
+    // MARK: - githubURL anchor construction
+
+    @Test func githubURL_prComment_usesIssuecommentAnchor() throws {
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let event = TimelineEvent(id: "TE_1", type: .comment, at: .distantPast,
+                                  pullRequest: pr, actor: other, body: "x")
+        event.numericID = 12345
+        ctx.insert(event)
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.first?.githubURL?.absoluteString == "https://github.com/oreilly/spark-ios/pull/1#issuecomment-12345")
+    }
+
+    @Test func githubURL_reviewSummary_usesPullrequestreviewAnchor() throws {
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let event = TimelineEvent(id: "TE_REV", type: .review, at: .distantPast,
+                                  pullRequest: pr, actor: other, body: "LGTM",
+                                  reviewState: .approved)
+        event.reviewID = 98765
+        ctx.insert(event)
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.first?.githubURL?.absoluteString == "https://github.com/oreilly/spark-ios/pull/1#pullrequestreview-98765")
+    }
+
+    @Test func githubURL_reviewComment_usesDiscussionAnchor() throws {
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let root = makeReviewComment(in: pr, ctx: ctx, id: "RC1", author: other)
+        root.numericID = 55555
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.first?.githubURL?.absoluteString == "https://github.com/oreilly/spark-ios/pull/1#discussion_r55555")
+    }
+
+    @Test func githubURL_nilNumericID_fallsBackToPRURL() throws {
+        // A legacy row (no numericID yet) should still produce a clickable
+        // URL — the bare PR page.
+        let (ctx, pr, viewer) = try makePR()
+        let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)
+        let event = TimelineEvent(id: "TE_1", type: .comment, at: .distantPast,
+                                  pullRequest: pr, actor: other, body: "x")
+        // numericID intentionally NOT set
+        ctx.insert(event)
+        try ctx.save()
+        let prFresh = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        let ts = TodoHelpers.threads(for: prFresh, viewerLogin: viewer.login, lastSeenAt: nil)
+        #expect(ts.first?.githubURL?.absoluteString == "https://github.com/oreilly/spark-ios/pull/1")
+    }
 }

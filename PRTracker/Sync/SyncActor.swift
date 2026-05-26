@@ -178,6 +178,7 @@ actor SyncActor {
                 existing.diffHunk = dto.diff_hunk
                 existing.parentReviewIntegerID = dto.pull_request_review_id
                 existing.inReplyToID = replyTo
+                existing.numericID = dto.id
                 // isSeen and createdAt preserved deliberately.
             } else {
                 let author = upsertUser(dto.user, ctx: ctx)
@@ -193,6 +194,7 @@ actor SyncActor {
                     createdAt: dto.created_at,
                     isSeen: false,
                     pullRequest: pr)
+                comment.numericID = dto.id
                 ctx.insert(comment)
             }
         }
@@ -238,6 +240,7 @@ actor SyncActor {
                 if let s = dto.sha { e.sha = s }
                 e.reviewState = revState ?? e.reviewState
                 e.reviewID = parentReviewID ?? e.reviewID
+                e.numericID = dto.id ?? e.numericID
                 // isSeen preserved deliberately
             } else {
                 let e = TimelineEvent(
@@ -245,6 +248,7 @@ actor SyncActor {
                     pullRequest: pr, actor: actorUser,
                     body: effectiveBody, sha: dto.sha, reviewState: revState, isSeen: false)
                 e.reviewID = parentReviewID
+                e.numericID = dto.id
                 ctx.insert(e)
             }
         }

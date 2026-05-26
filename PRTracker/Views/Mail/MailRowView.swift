@@ -87,8 +87,10 @@ struct MailRowView: View {
     }
 
     private var rowBackground: Color {
-        if isSelected { return Tokens.rowSelect }
-        if hover { return Tokens.rowHover }
+        // Selection background is painted by the wrapping `Button` in
+        // `MailListView` (we own selection styling end-to-end now to avoid
+        // `List`'s system blue stomping on row content). Here we only paint hover.
+        if hover && !isSelected { return Tokens.rowHover }
         return .clear
     }
 

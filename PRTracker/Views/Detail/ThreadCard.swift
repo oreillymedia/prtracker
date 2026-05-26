@@ -70,6 +70,15 @@ struct ThreadCard: View {
                     }
                     .buttonStyle(.plain)
                 }
+                if let url = thread.githubURL {
+                    Link(destination: url) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Tokens.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open discussion on GitHub")
+                }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Tokens.textFaint)

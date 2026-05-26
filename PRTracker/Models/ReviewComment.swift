@@ -4,6 +4,10 @@ import SwiftData
 @Model
 final class ReviewComment {
     @Attribute(.unique) var id: String   // "RC_<github-id>" surrogate
+    /// GitHub's numeric database ID for this review comment, used for
+    /// per-thread anchor URLs (e.g. `#discussion_r<id>`). May be nil for rows
+    /// synced before this column existed; resync repopulates.
+    var numericID: Int?
     var parentReviewIntegerID: Int?
     var inReplyToID: String?
     var author: User
