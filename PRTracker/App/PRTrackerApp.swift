@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Sparkle
 
 @main
 struct PRTrackerApp: App {
@@ -10,6 +11,7 @@ struct PRTrackerApp: App {
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
     let badge = MenuBarBadge()
+    @State private var updater = Updater()
 
     init() {
         let schema = Schema([
@@ -39,6 +41,14 @@ struct PRTrackerApp: App {
         }
         .modelContainer(container)
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!updater.canCheckForUpdates)
+            }
+        }
 
         MenuBarExtra {
             MenuBarContentView(coordinator: coordinator, badge: badge)
