@@ -6,6 +6,7 @@ struct MailDetailHeader: View {
     let lastUpdatedAt: Date?
     let onRefresh: () -> Void
     let todoCounts: TodoCounts
+    let ciFailedForMe: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -16,8 +17,8 @@ struct MailDetailHeader: View {
                 .lineLimit(nil)
                 .multilineTextAlignment(.leading)
             metadataRow
-            if todoCounts.total > 0 {
-                TodoSummaryBar(counts: todoCounts)
+            if todoCounts.total > 0 || ciFailedForMe {
+                TodoSummaryBar(counts: todoCounts, ciFailedForMe: ciFailedForMe)
                     .padding(.top, 4)
             }
         }

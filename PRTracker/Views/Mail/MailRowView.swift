@@ -16,7 +16,14 @@ struct MailRowView: View {
     }
 
     private var fullyResolved: Bool {
-        pr.state == .open && todoCounts.total > 0 && todoCounts.open == 0
+        guard pr.state == .open, todoCounts.total > 0, todoCounts.open == 0 else { return false }
+        // Author still owes a fix if CI is red on their own PR.
+        if pr.author.login == viewerLogin && pr.ciFail > 0 { return false }
+        return true
+    }
+
+    private var ciFailedForMe: Bool {
+        pr.state == .open && pr.author.login == viewerLogin && pr.ciFail > 0
     }
 
     private var bucket: Section? {
@@ -53,7 +60,7 @@ struct MailRowView: View {
                 .opacity(awaitingMe ? 1 : (dimRow ? 0.5 : 0.85))
                 .frame(maxHeight: .infinity)
 
-            TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState)
+            TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState, inProgressIcon: "highlighter")
 
             VStack(alignment: .leading, spacing: 4) {
                 topLine
@@ -80,6 +87,7 @@ struct MailRowView: View {
     }
 
     private var ringState: TodoRing.RingState {
+        if ciFailedForMe { return .ciFailed }
         if todoCounts.total == 0 { return .empty }
         if todoCounts.open == 0 { return .allResolved }
         if awaitingMe { return .awaitingMe }
@@ -133,6 +141,14 @@ struct MailRowView: View {
                 Text("Merged").font(.system(size: 10.5, weight: .semibold))
             }
             .foregroundStyle(Lane.recent.color)
+        case .ciFailed:
+            HStack(spacing: 3) {
+                Image(systemName: "xmark.octagon.fill").font(.system(size: 10).weight(.bold))
+                Text("CI failed").font(.system(size: 10.5, weight: .bold))
+            }
+            .foregroundStyle(Tokens.changes)
+            .padding(.horizontal, 7).padding(.vertical, 1)
+            .background(Tokens.changesBg, in: Capsule())
         case .caughtUp:
             HStack(spacing: 3) {
                 Image(systemName: "checkmark").font(.system(size: 10).weight(.bold))
@@ -156,10 +172,13 @@ struct MailRowView: View {
         }
     }
 
-    private enum ChipKind { case merged, caughtUp, forMe(Int), waiting, none }
+    private enum ChipKind { case merged, ciFailed, caughtUp, forMe(Int), waiting, none }
 
     private var chipKind: ChipKind {
         if pr.state == .merged { return .merged }
+        // CI failure on the viewer's own PR takes precedence over caughtUp /
+        // forMe — fixing the build is the implicit todo.
+        if ciFailedForMe { return .ciFailed }
         if fullyResolved { return .caughtUp }
         if awaitingMe { return .forMe(todoCounts.openMessages) }
         if todoCounts.total > 0 { return .waiting }

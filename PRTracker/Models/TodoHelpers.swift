@@ -138,7 +138,10 @@ enum TodoHelpers {
         if pr.state == .merged || pr.state == .closed { return false }
         let counts = todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: lastSeenAt)
         if counts.openMessages > 0 { return true }
-        if pr.author.login == viewerLogin && pr.reviewState == .changesRequested { return true }
+        let mine = pr.author.login == viewerLogin
+        if mine && pr.reviewState == .changesRequested { return true }
+        // Failing CI on a PR I authored is a todo for me, regardless of comments.
+        if mine && pr.ciFail > 0 { return true }
         return false
     }
 

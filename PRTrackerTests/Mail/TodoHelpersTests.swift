@@ -241,6 +241,21 @@ import SwiftData
         #expect(ts.isEmpty)
     }
 
+    @Test func ballInMyCourt_myPR_ciFailing_true() throws {
+        // Viewer authored the PR; CI is red; no open comments. The author
+        // still owes a fix, so ballInMyCourt should fire.
+        let (_, pr, viewer) = try makePR(viewer: "alex", author: "alex")
+        pr.ciFail = 2
+        #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == true)
+    }
+
+    @Test func ballInMyCourt_othersPR_ciFailing_false() throws {
+        // CI failing on someone else's PR isn't my todo.
+        let (_, pr, viewer) = try makePR()  // viewer "alex", author "dan"
+        pr.ciFail = 5
+        #expect(TodoHelpers.ballInMyCourt(pr, viewerLogin: viewer.login, lastSeenAt: nil) == false)
+    }
+
     @Test func ballInMyCourt_myPR_changesRequested_true() throws {
         // Viewer authored the PR; a reviewer requested changes; no open code
         // comments. The changesRequested path of ballInMyCourt should still

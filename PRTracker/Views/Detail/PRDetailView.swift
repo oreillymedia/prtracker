@@ -18,6 +18,10 @@ struct PRDetailView: View {
         TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
     }
 
+    private var ciFailedForMe: Bool {
+        pr.state == .open && pr.author.login == viewerLogin && pr.ciFail > 0
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             MailDetailHeader(
@@ -25,7 +29,8 @@ struct PRDetailView: View {
                 isRefreshing: isLoading,
                 lastUpdatedAt: pr.updatedAt,
                 onRefresh: { Task { await loadTimeline() } },
-                todoCounts: todoCounts)
+                todoCounts: todoCounts,
+                ciFailedForMe: ciFailedForMe)
             HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
