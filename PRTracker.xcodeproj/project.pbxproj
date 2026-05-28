@@ -351,10 +351,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PRTracker/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/oreillymedia/prtracker/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "y0z5UqJCS2iSM1R+naNOV0Jr3Ef3WJJCmlOBjMMZC7A=";
-				INFOPLIST_KEY_SUScheduledCheckInterval = 86400;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -390,10 +386,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PRTracker/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/oreillymedia/prtracker/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "y0z5UqJCS2iSM1R+naNOV0Jr3Ef3WJJCmlOBjMMZC7A=";
-				INFOPLIST_KEY_SUScheduledCheckInterval = 86400;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
