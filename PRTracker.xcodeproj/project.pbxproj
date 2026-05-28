@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4A53CC152FC8E6E400963F66 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 4A53CC142FC8E6E400963F66 /* Sparkle */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		4AD273D62F9FD68A004697D1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -39,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A53CC152FC8E6E400963F66 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +95,7 @@
 			);
 			name = PRTracker;
 			packageProductDependencies = (
+				4A53CC142FC8E6E400963F66 /* Sparkle */,
 			);
 			productName = PRTracker;
 			productReference = 4AD273C62F9FD687004697D1 /* PRTracker.app */;
@@ -146,6 +152,9 @@
 			);
 			mainGroup = 4AD273BD2F9FD687004697D1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4A53CC132FC8E6E400963F66 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4AD273C72F9FD687004697D1 /* Products */;
 			projectDirPath = "";
@@ -467,6 +476,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4A53CC132FC8E6E400963F66 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4A53CC142FC8E6E400963F66 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A53CC132FC8E6E400963F66 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4AD273BE2F9FD687004697D1 /* Project object */;
 }
