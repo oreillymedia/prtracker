@@ -60,3 +60,18 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+
+# Build artifacts
+build/
+releases/
+
+# Sparkle CLI tools (downloaded per-developer; not committed)
+scripts/sparkle-bin/
+
+# macOS
+.DS_Store
+
+# Xcode user-specific state
+xcuserdata/
+*.xcuserstate
