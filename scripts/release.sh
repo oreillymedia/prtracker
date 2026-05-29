@@ -85,7 +85,7 @@ rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 
 echo "==> Generating appcast"
-"$SPARKLE_BIN/generate_appcast" "$RELEASES_DIR"
+"$SPARKLE_BIN/generate_appcast" --maximum-deltas 0 "$RELEASES_DIR"
 
 echo "==> Rewriting enclosure URLs to GitHub Releases form"
 python3 scripts/rewrite_appcast_urls.py "$RELEASES_DIR/appcast.xml" \
