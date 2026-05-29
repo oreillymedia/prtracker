@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>PRTracker</title>
+        <item>
+            <title>0.1.1</title>
+            <pubDate>Fri, 29 May 2026 14:25:22 -0500</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.4</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/oreillymedia/prtracker/releases/download/v0.1.1/PRTracker-0.1.1.zip" length="2380391" type="application/octet-stream" sparkle:edSignature="Om8yj/nhk/rDSoOFBNe82ILlOC3lmLoJ8o29pMfbCjlp+2ZAL6oWwNENLJD4a5vhWlGca24gCFFgp3bnCnnVBQ==" />
+        </item>
+    </channel>
+</rss>
