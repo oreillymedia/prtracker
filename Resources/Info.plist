@@ -4,6 +4,8 @@
 <dict>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/oreillymedia/prtracker/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
