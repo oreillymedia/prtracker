@@ -2,6 +2,31 @@
 
 This document covers one-time setup and the per-release runbook for publishing PRTracker via Sparkle.
 
+## How auto-update is wired
+
+For future maintainers — three things have to be in place for in-app updates to work on a sandboxed macOS app. All three are configured today; this is documentation, not a setup checklist.
+
+1. **`Resources/Info.plist`** carries Sparkle's runtime configuration:
+   - `SUFeedURL` — appcast location
+   - `SUPublicEDKey` — EdDSA public key used to verify signatures
+   - `SUEnableAutomaticChecks` — background check toggle
+   - `SUScheduledCheckInterval` — daily
+   - **`SUEnableInstallerLauncherService = YES`** — opts into Sparkle's out-of-process installer. Without this, Sparkle tries to elevate privileges in-process and fails (`-60005 errAuthorizationDenied`) from inside the sandbox.
+
+2. **`PRTracker/PRTracker.entitlements`** grants mach-lookup exceptions to talk to Sparkle's installer XPC services:
+   ```xml
+   <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+   <array>
+       <string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+       <string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+   </array>
+   ```
+   `-spks` is the installer launcher service; `-spki` is the installer status service.
+
+3. **The Sparkle SPM dependency** (currently 2.9.2) bundles the actual `Installer.xpc` and `Downloader.xpc` inside `Sparkle.framework/Versions/B/XPCServices/`. Don't touch.
+
+If any of (1) or (2) is missing on a shipped build, that build is a permanent dead end — it cannot auto-update to a fixed version. Users on it have to manually download + replace `/Applications/PRTracker.app`. **Test the round-trip every time these change.**
+
 ## One-time setup
 
 ### 1. Developer ID Application certificate
@@ -86,39 +111,17 @@ $EDITOR releases/notes-<X.Y.Z>.md
 
 `releases/` is gitignored; the notes file is not committed (the GitHub Release page hosts it).
 
-### 3. Run the release script
+### 3. Run the full publish flow
 
 ```bash
-./scripts/release.sh <X.Y.Z>
+./scripts/publish.sh <X.Y.Z>
 ```
 
-The script archives, exports, notarizes, staples, zips, regenerates the appcast, and rewrites enclosure URLs. It stops short of pushing.
+`publish.sh` wraps the full pipeline: push pending commits → archive → notarize (~2-8 min) → staple → zip → regenerate appcast → commit + push appcast → cut GitHub Release. It prints the release URL on success.
 
-### 4. Eyeball the appcast diff
+If you want to inspect the appcast before publishing, use the lower-level `./scripts/release.sh <X.Y.Z>` instead — it stops short of pushing.
 
-```bash
-git diff appcast.xml
-```
-
-Confirm:
-- A new `<item>` block exists for `X.Y.Z`
-- The `<enclosure url>` points at `https://github.com/oreillymedia/prtracker/releases/download/vX.Y.Z/PRTracker-X.Y.Z.zip`
-- `sparkle:edSignature` is populated (non-empty)
-- `sparkle:version` matches the new `CURRENT_PROJECT_VERSION`
-
-### 5. Push appcast + cut GitHub Release
-
-```bash
-git add appcast.xml
-git commit -m "release: v<X.Y.Z>"
-git push
-
-gh release create v<X.Y.Z> releases/PRTracker-<X.Y.Z>.zip \
-    --title "v<X.Y.Z>" \
-    --notes-file releases/notes-<X.Y.Z>.md
-```
-
-### 6. Verify
+### 4. Verify
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/oreillymedia/prtracker/main/appcast.xml \
