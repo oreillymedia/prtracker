@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import ServiceManagement
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var ctx
@@ -11,10 +12,12 @@ struct SettingsView: View {
     let coordinator: SyncCoordinator
 
     @State private var newRepo: String = ""
+    @State private var authDeniedHintVisible: Bool = false
 
     var body: some View {
         TabView {
             generalTab.tabItem { SwiftUI.Label("General", systemImage: "gearshape") }
+            notificationsTab.tabItem { SwiftUI.Label("Notifications", systemImage: "bell") }
             accountTab.tabItem { SwiftUI.Label("Account", systemImage: "person.circle") }
             repoTab.tabItem    { SwiftUI.Label("Repository", systemImage: "folder") }
         }
@@ -96,6 +99,76 @@ struct SettingsView: View {
             }
             Spacer()
         }
+    }
+
+    @ViewBuilder private var notificationsTab: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Notify me about").font(.headline)
+            Picker("", selection: Binding(
+                get: { vs.notificationLevel },
+                set: { newValue in
+                    let previous = vs.notificationLevel
+                    vs.notificationLevel = newValue
+                    try? ctx.save()
+                    Task { await handleLevelChange(previous: previous, newValue: newValue) }
+                })) {
+                Text("Everything — all comments, reviews, CI failures, commits, and state changes").tag(NotificationLevel.everything)
+                Text("Personal — PRs you authored, replies to your comments").tag(NotificationLevel.personal)
+                Text("None — no notifications").tag(NotificationLevel.none)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+
+            if authDeniedHintVisible {
+                Text("macOS notifications are disabled for PR Tracker. Enable in System Settings → Notifications → PR Tracker.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Tokens.textFaint)
+            }
+
+            Divider().padding(.vertical, 4)
+
+            Text("Badging").font(.headline)
+            Toggle("Show indicator on menu-bar icon", isOn: Binding(
+                get: { vs.menuBarBadgeEnabled },
+                set: { newValue in
+                    vs.menuBarBadgeEnabled = newValue
+                    try? ctx.save()
+                    coordinator.badgeController?.menuBarEnabled = newValue
+                    coordinator.badgeController?.apply()
+                }))
+            Toggle("Show indicator on Dock icon", isOn: Binding(
+                get: { vs.dockBadgeEnabled },
+                set: { newValue in
+                    vs.dockBadgeEnabled = newValue
+                    try? ctx.save()
+                    coordinator.badgeController?.dockEnabled = newValue
+                    coordinator.badgeController?.apply()
+                }))
+
+            Spacer()
+        }
+        .task { await refreshAuthHint() }
+    }
+
+    private func handleLevelChange(previous: NotificationLevel, newValue: NotificationLevel) async {
+        if newValue == .none {
+            authDeniedHintVisible = false
+            return
+        }
+        let auth = NotificationAuthorization()
+        var status = await auth.currentStatus()
+        if status == .notDetermined {
+            status = await auth.requestAuthorization()
+        }
+        if status == .authorized && previous == .none {
+            await coordinator.notificationDispatcher?.backfillSilentBaseline()
+        }
+        authDeniedHintVisible = (status == .denied)
+    }
+
+    private func refreshAuthHint() async {
+        let status = await NotificationAuthorization().currentStatus()
+        authDeniedHintVisible = (vs.notificationLevel != .none && status == .denied)
     }
 
     private func switchRepo() {
