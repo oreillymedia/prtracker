@@ -191,7 +191,6 @@ import UserNotifications
         #expect(logs.contains("ci_111"))
         #expect(logs.contains("opened_PR_60"))
         #expect(logs.contains("push_PR_60_sha1"))
-        #expect(logs.contains("state_PR_60_open"))
 
         // A subsequent process() must post nothing.
         await dispatcher.process(repoID: repo.id)

@@ -21,6 +21,13 @@ final class BadgeController {
 
     init(dock: DockBadgeSetting = NSAppDockBadge()) {
         self.dock = dock
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.dock.setLabel(nil)
+        }
     }
 
     var menuBarShowsDot: Bool { menuBarEnabled && attentionCount > 0 }

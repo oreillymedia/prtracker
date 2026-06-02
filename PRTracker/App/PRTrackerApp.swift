@@ -11,7 +11,7 @@ struct PRTrackerApp: App {
     let client: GitHubClient
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
-    let badgeController = BadgeController()
+    let badgeController: BadgeController
     let notificationDelegate: NotificationDelegate
     let dispatcher: NotificationDispatcher
     @State private var updater = Updater()
@@ -24,6 +24,12 @@ struct PRTrackerApp: App {
         ])
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         let c = try! ModelContainer(for: schema, configurations: [cfg])
+        let bc = BadgeController()
+        let bootCtx = ModelContext(c)
+        if let vs = (try? bootCtx.fetch(FetchDescriptor<ViewerState>()))?.first {
+            bc.menuBarEnabled = vs.menuBarBadgeEnabled
+            bc.dockEnabled = vs.dockBadgeEnabled
+        }
         let kc = Keychain()
         let cli = GitHubClient(
             session: URLSession(configuration: .default),
@@ -34,6 +40,7 @@ struct PRTrackerApp: App {
         self.keychain = kc
         self.client = cli
         self.syncActor = act
+        self.badgeController = bc
         self.coordinator = SyncCoordinator(client: cli, syncActor: act, modelContainer: c)
 
         let d = NotificationDispatcher(modelContainer: c, poster: UNCenterPoster())

@@ -108,7 +108,7 @@ final class NotificationDispatcher {
 
         let stateID = "state_\(pr.id)_\(pr.state.rawValue)"
         if !existing.contains(stateID),
-           [PRState.merged, .closed, .open].contains(pr.state) {
+           [PRState.merged, .closed].contains(pr.state) {
             out.append(NotificationCandidate(kind: .stateChange(newState: pr.state, actorLogin: nil), prID: pr.id))
         }
 
