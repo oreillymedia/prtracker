@@ -17,7 +17,7 @@ struct PRTrackerApp: App {
         let schema = Schema([
             User.self, Repo.self, PullRequest.self, TimelineEvent.self,
             Reviewer.self, Label.self, CIRun.self, ViewerState.self, HTTPCache.self,
-            ReviewComment.self,
+            ReviewComment.self, NotificationLog.self,
         ])
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         let c = try! ModelContainer(for: schema, configurations: [cfg])
