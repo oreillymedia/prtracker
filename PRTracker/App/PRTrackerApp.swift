@@ -10,7 +10,7 @@ struct PRTrackerApp: App {
     let client: GitHubClient
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
-    let badge = MenuBarBadge()
+    let badgeController = BadgeController()
     @State private var updater = Updater()
 
     init() {
@@ -51,11 +51,11 @@ struct PRTrackerApp: App {
         }
 
         MenuBarExtra {
-            MenuBarContentView(coordinator: coordinator, badge: badge)
+            MenuBarContentView(coordinator: coordinator, controller: badgeController)
                 .environment(appState)
                 .modelContainer(container)
         } label: {
-            MenuBarLabel(badge: badge)
+            MenuBarLabel(controller: badgeController)
         }
         .menuBarExtraStyle(.window)
 

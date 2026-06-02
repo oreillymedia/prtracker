@@ -9,7 +9,7 @@ struct MenuBarContentView: View {
     @Query private var viewerStates: [ViewerState]
 
     let coordinator: SyncCoordinator
-    let badge: MenuBarBadge
+    let controller: BadgeController
 
     var body: some View {
         let viewer = viewerStates.first?.viewer
@@ -52,7 +52,8 @@ struct MenuBarContentView: View {
         }
         .frame(width: 320)
         .task(id: prs.count) {
-            badge.count = (buckets[.attention] ?? []).count
+            controller.attentionCount = (buckets[.attention] ?? []).count
+            controller.apply()
         }
     }
 
