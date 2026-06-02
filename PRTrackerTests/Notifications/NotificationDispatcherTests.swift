@@ -165,4 +165,36 @@ import UserNotifications
         #expect(logs.contains("comment_IC_2"))
         #expect(logs.contains("ci_999"))
     }
+
+    @Test func backfillWritesLogRowsButPostsNothing() async throws {
+        let (container, repo, _) = try setup(level: .personal)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_60", number: 60, title: "X",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "sha1",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        ctx.insert(TimelineEvent(id: "IC_A", type: .comment, at: .now, pullRequest: pr, actor: author, body: "a"))
+        ctx.insert(CIRun(checkRunID: 111, name: "build", state: .fail, pr: pr))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.backfillSilentBaseline()
+
+        #expect(poster.posted.isEmpty)
+        let logs = (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
+        #expect(logs.contains("comment_IC_A"))
+        #expect(logs.contains("ci_111"))
+        #expect(logs.contains("opened_PR_60"))
+        #expect(logs.contains("push_PR_60_sha1"))
+        #expect(logs.contains("state_PR_60_open"))
+
+        // A subsequent process() must post nothing.
+        await dispatcher.process(repoID: repo.id)
+        #expect(poster.posted.isEmpty)
+    }
 }

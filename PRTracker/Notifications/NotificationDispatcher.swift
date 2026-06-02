@@ -203,4 +203,17 @@ final class NotificationDispatcher {
         case .opened: return "opened"
         }
     }
+
+    func backfillSilentBaseline() async {
+        let ctx = ModelContext(modelContainer)
+        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>())) ?? []
+        for pr in prs {
+            let existing = Set(pr.notificationLogs.map(\.id))
+            for c in collectCandidates(pr: pr, existing: existing) {
+                let id = idFor(c)
+                ctx.insert(NotificationLog(id: id, kind: kindFor(c), notifiedAt: .now, pullRequest: pr))
+            }
+        }
+        try? ctx.save()
+    }
 }
