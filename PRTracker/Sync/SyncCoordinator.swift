@@ -11,6 +11,8 @@ final class SyncCoordinator {
     var isSyncing: Bool = false
     var lastSyncAt: Date?
     var lastSyncError: GitHubError?
+    var notificationDispatcher: NotificationDispatcher?
+    var badgeController: BadgeController?
 
     private var task: Task<Void, Never>?
     private var foregroundIntervalSec: TimeInterval = 120
@@ -85,6 +87,9 @@ final class SyncCoordinator {
             }
 
             lastSyncAt = .now
+            if let d = notificationDispatcher {
+                await d.process(repoID: repoID)
+            }
         } catch let e as GitHubError {
             lastSyncError = e
         } catch {

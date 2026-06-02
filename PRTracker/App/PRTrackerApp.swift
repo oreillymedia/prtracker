@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Sparkle
+import UserNotifications
 
 @main
 struct PRTrackerApp: App {
@@ -11,6 +12,8 @@ struct PRTrackerApp: App {
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
     let badgeController = BadgeController()
+    let notificationDelegate: NotificationDelegate
+    let dispatcher: NotificationDispatcher
     @State private var updater = Updater()
 
     init() {
@@ -32,6 +35,15 @@ struct PRTrackerApp: App {
         self.client = cli
         self.syncActor = act
         self.coordinator = SyncCoordinator(client: cli, syncActor: act, modelContainer: c)
+
+        let d = NotificationDispatcher(modelContainer: c, poster: UNCenterPoster())
+        let delegate = NotificationDelegate()
+        delegate.appState = self.appState
+        UNUserNotificationCenter.current().delegate = delegate
+        self.notificationDelegate = delegate
+        self.dispatcher = d
+        self.coordinator.notificationDispatcher = d
+        self.coordinator.badgeController = self.badgeController
     }
 
     var body: some Scene {
