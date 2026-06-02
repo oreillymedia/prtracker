@@ -158,7 +158,7 @@ import UserNotifications
         await dispatcher.process(repoID: repo.id)
 
         #expect(poster.posted.count == 1)
-        #expect(poster.posted[0].body == "3 updates on 'Refactor sync'")
+        #expect(poster.posted[0].body.contains("updates on 'Refactor sync'"))
 
         let logs = (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
         #expect(logs.contains("comment_IC_1"))

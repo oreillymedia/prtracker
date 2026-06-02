@@ -44,6 +44,11 @@ final class NotificationDispatcher {
 
             if filtered.isEmpty { continue }
 
+            // Re-check frontmost just before posting. If the app was activated between
+            // the top-of-process check and now, skip this PR's banner AND log writes —
+            // the next sync will re-evaluate the same candidates.
+            if await MainActor.run(body: { activity.isFrontmost() }) { continue }
+
             let content: UNNotificationContent =
                 filtered.count == 1
                 ? specificContent(filtered[0], pr: pr)

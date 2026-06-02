@@ -9,7 +9,7 @@ enum MenuBarIconRenderer {
         composite.lockFocus()
         base.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
         let dot = NSRect(x: 11, y: 11, width: 7, height: 7)
-        NSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1.0).setFill()
+        NSColor(Tokens.accent).setFill()
         NSBezierPath(ovalIn: dot).fill()
         composite.unlockFocus()
         composite.isTemplate = false
