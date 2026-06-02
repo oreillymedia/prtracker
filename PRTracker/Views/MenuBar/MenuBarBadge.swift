@@ -1,13 +1,8 @@
 import SwiftUI
 
-@Observable
-final class MenuBarBadge {
-    var count: Int = 0
-}
-
 struct MenuBarLabel: View {
-    let badge: MenuBarBadge
+    let controller: BadgeController
     var body: some View {
-        Image(nsImage: MenuBarIconRenderer.image(attentionCount: badge.count))
+        Image(nsImage: MenuBarIconRenderer.image(showDot: controller.menuBarShowsDot))
     }
 }

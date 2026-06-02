@@ -36,6 +36,7 @@ nonisolated struct RefDTO: Decodable {
 }
 
 nonisolated struct CheckRunDTO: Decodable {
+    let id: Int
     let name: String
     let status: String                // "queued" | "in_progress" | "completed"
     let conclusion: String?           // "success" | "failure" | "neutral" | "cancelled" | "timed_out" | "action_required"

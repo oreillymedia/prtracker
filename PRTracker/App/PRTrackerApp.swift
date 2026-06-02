@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Sparkle
+import UserNotifications
 
 @main
 struct PRTrackerApp: App {
@@ -10,17 +11,25 @@ struct PRTrackerApp: App {
     let client: GitHubClient
     let syncActor: SyncActor
     let coordinator: SyncCoordinator
-    let badge = MenuBarBadge()
+    let badgeController: BadgeController
+    let notificationDelegate: NotificationDelegate
+    let dispatcher: NotificationDispatcher
     @State private var updater = Updater()
 
     init() {
         let schema = Schema([
             User.self, Repo.self, PullRequest.self, TimelineEvent.self,
             Reviewer.self, Label.self, CIRun.self, ViewerState.self, HTTPCache.self,
-            ReviewComment.self,
+            ReviewComment.self, NotificationLog.self,
         ])
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         let c = try! ModelContainer(for: schema, configurations: [cfg])
+        let bc = BadgeController()
+        let bootCtx = ModelContext(c)
+        if let vs = (try? bootCtx.fetch(FetchDescriptor<ViewerState>()))?.first {
+            bc.menuBarEnabled = vs.menuBarBadgeEnabled
+            bc.dockEnabled = vs.dockBadgeEnabled
+        }
         let kc = Keychain()
         let cli = GitHubClient(
             session: URLSession(configuration: .default),
@@ -31,7 +40,17 @@ struct PRTrackerApp: App {
         self.keychain = kc
         self.client = cli
         self.syncActor = act
+        self.badgeController = bc
         self.coordinator = SyncCoordinator(client: cli, syncActor: act, modelContainer: c)
+
+        let d = NotificationDispatcher(modelContainer: c, poster: UNCenterPoster())
+        let delegate = NotificationDelegate()
+        delegate.appState = self.appState
+        UNUserNotificationCenter.current().delegate = delegate
+        self.notificationDelegate = delegate
+        self.dispatcher = d
+        self.coordinator.notificationDispatcher = d
+        self.coordinator.badgeController = self.badgeController
     }
 
     var body: some Scene {
@@ -51,11 +70,11 @@ struct PRTrackerApp: App {
         }
 
         MenuBarExtra {
-            MenuBarContentView(coordinator: coordinator, badge: badge)
+            MenuBarContentView(coordinator: coordinator, controller: badgeController)
                 .environment(appState)
                 .modelContainer(container)
         } label: {
-            MenuBarLabel(badge: badge)
+            MenuBarLabel(controller: badgeController)
         }
         .menuBarExtraStyle(.window)
 

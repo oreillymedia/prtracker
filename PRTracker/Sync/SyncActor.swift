@@ -136,7 +136,7 @@ actor SyncActor {
                 guard let s = r.started_at, let e = r.completed_at else { return nil }
                 return Int(e.timeIntervalSince(s))
             }()
-            ctx.insert(CIRun(name: r.name, state: state, pr: pr, durationSeconds: dur))
+            ctx.insert(CIRun(checkRunID: r.id, name: r.name, state: state, pr: pr, durationSeconds: dur))
         }
         pr.ciPass = pass; pr.ciFail = fail; pr.ciRunning = running; pr.ciPending = pending
         pr.ciTotal = dto.total_count

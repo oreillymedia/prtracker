@@ -30,3 +30,4 @@ scripts/__pycache__/
 
 # macOS
 .DS_Store
+.superpowers/

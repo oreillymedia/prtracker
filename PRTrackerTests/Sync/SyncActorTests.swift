@@ -86,7 +86,7 @@ import SwiftData
         let actor = SyncActor(modelContainer: container)
         try await actor.upsertPullRequests([samplePullDTO(head: "sha1")], inRepoID: repo.id)
         try await actor.upsertCIChecks(prID: "PR_5107", dto: CheckRunsResponseDTO(
-            total_count: 1, check_runs: [CheckRunDTO(name: "Build", status: "completed", conclusion: "success", started_at: nil, completed_at: nil)]))
+            total_count: 1, check_runs: [CheckRunDTO(id: 1, name: "Build", status: "completed", conclusion: "success", started_at: nil, completed_at: nil)]))
         try await actor.upsertPullRequests([samplePullDTO(head: "sha2")], inRepoID: repo.id)
         let ctx = ModelContext(container)
         let prs = try ctx.fetch(FetchDescriptor<PullRequest>())
@@ -114,5 +114,26 @@ import SwiftData
         let ctx = ModelContext(container)
         let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
         #expect(pr?.lastReadAt == nil)
+    }
+
+    @Test func upsertCIChecksStoresCheckRunID() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+
+        let json = """
+        {"total_count":1,"check_runs":[
+          {"id":987654321,"name":"build","status":"completed","conclusion":"failure",
+           "started_at":"2026-04-23T10:00:00Z","completed_at":"2026-04-23T10:05:00Z"}
+        ]}
+        """
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601
+        let dto = try d.decode(CheckRunsResponseDTO.self, from: json.data(using: .utf8)!)
+        try await actor.upsertCIChecks(prID: "PR_5107", dto: dto)
+
+        let ctx = ModelContext(container)
+        let runs = try ctx.fetch(FetchDescriptor<CIRun>())
+        #expect(runs.count == 1)
+        #expect(runs[0].checkRunID == 987654321)
     }
 }
