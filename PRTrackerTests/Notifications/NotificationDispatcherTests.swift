@@ -19,6 +19,12 @@ import UserNotifications
         return (container, repo, vs)
     }
 
+    private func seedBaseline(for pr: PullRequest, ctx: ModelContext) {
+        ctx.insert(NotificationLog(id: "opened_\(pr.id)", kind: "opened", notifiedAt: .now, pullRequest: pr))
+        ctx.insert(NotificationLog(id: "push_\(pr.id)_\(pr.headSha)", kind: "push", notifiedAt: .now, pullRequest: pr))
+        ctx.insert(NotificationLog(id: "state_\(pr.id)_\(pr.state.rawValue)", kind: "state_change", notifiedAt: .now, pullRequest: pr))
+    }
+
     @Test func levelNoneShortCircuits() async throws {
         let (container, repo, _) = try setup(level: .none)
         let poster = CapturingPoster()
@@ -50,5 +56,113 @@ import UserNotifications
                                                 activity: StubActivityProbe(frontmost: true))
         await dispatcher.process(repoID: repo.id)
         #expect(poster.posted.isEmpty)
+    }
+
+    @Test func singleNewIssueCommentFires() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_42", number: 42, title: "Add login",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now,
+                             author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        let evt = TimelineEvent(id: "IC_1", type: .comment, at: .now,
+                                pullRequest: pr, actor: author, body: "Looks good")
+        ctx.insert(evt)
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container,
+                                                poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(poster.posted.count == 1)
+        #expect(poster.posted[0].title == "\(repo.id) #42")
+        #expect(poster.posted[0].body.contains("iris"))
+        #expect(poster.posted[0].body.contains("Looks good"))
+
+        let logs = try ctx.fetch(FetchDescriptor<NotificationLog>())
+        #expect(logs.count == 4)
+        #expect(logs.contains(where: { $0.id == "comment_IC_1" }))
+    }
+
+    @Test func idempotentReprocessing() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_42", number: 42, title: "T",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        ctx.insert(TimelineEvent(id: "IC_1", type: .comment, at: .now,
+                                 pullRequest: pr, actor: author, body: "hi"))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.process(repoID: repo.id)
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(poster.posted.count == 1)
+    }
+
+    @Test func selfActionDoesNotFire() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let me = (try ctx.fetch(FetchDescriptor<ViewerState>())).first!.viewer!
+        let pr = PullRequest(id: "PR_43", number: 43, title: "T",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: me, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        ctx.insert(TimelineEvent(id: "IC_X", type: .comment, at: .now,
+                                 pullRequest: pr, actor: me, body: "self"))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.process(repoID: repo.id)
+        #expect(poster.posted.isEmpty)
+    }
+
+    @Test func multipleEventsOnOnePRAggregate() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_50", number: 50, title: "Refactor sync",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        ctx.insert(TimelineEvent(id: "IC_1", type: .comment, at: .now, pullRequest: pr, actor: author, body: "one"))
+        ctx.insert(TimelineEvent(id: "IC_2", type: .comment, at: .now, pullRequest: pr, actor: author, body: "two"))
+        ctx.insert(CIRun(checkRunID: 999, name: "build", state: .fail, pr: pr))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(poster.posted.count == 1)
+        #expect(poster.posted[0].body == "3 updates on 'Refactor sync'")
+
+        let logs = (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
+        #expect(logs.contains("comment_IC_1"))
+        #expect(logs.contains("comment_IC_2"))
+        #expect(logs.contains("ci_999"))
     }
 }
