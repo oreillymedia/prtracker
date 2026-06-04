@@ -5,12 +5,13 @@ struct MailRowView: View {
     let isSelected: Bool
     let viewerLogin: String
 
-    /// `.increased` when this row is the selected row of a focused list — i.e.
-    /// when the native accent selection capsule is drawn behind it. We flip the
-    /// row's content to white in that state so it reads on the accent (and stays
-    /// dark on the gray, unfocused selection, which is the standard behavior).
-    @Environment(\.backgroundProminence) private var prominence
-    private var highlighted: Bool { prominence == .increased }
+    /// True when this is the selected row and the window is active — i.e. when
+    /// the blue accent selection capsule (not the gray inactive one) is drawn
+    /// behind it, so we flip the row's content to white to read on the accent.
+    /// (`backgroundProminence` isn't updated for macOS `.sidebar` lists, so we
+    /// derive the state from the selection + window active state instead.)
+    @Environment(\.controlActiveState) private var controlActiveState
+    private var highlighted: Bool { isSelected && controlActiveState != .inactive }
     private var primaryColor: Color { highlighted ? .white : Tokens.text }
     private var secondaryColor: Color { highlighted ? Color.white.opacity(0.85) : Tokens.textMuted }
     private var faintColor: Color { highlighted ? Color.white.opacity(0.7) : Tokens.textFaint }
