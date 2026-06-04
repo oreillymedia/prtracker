@@ -3,6 +3,7 @@ import SwiftData
 
 struct PRDetailView: View {
     @Environment(\.modelContext) private var ctx
+    @Environment(\.openURL) private var openURL
     @Query private var viewerStates: [ViewerState]
     let pr: PullRequest
     let viewer: User?
@@ -50,7 +51,11 @@ struct PRDetailView: View {
                 .help("Refresh")
                 .disabled(isLoading)
 
-                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
+                Button {
+                    if let url = URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)") {
+                        openURL(url)
+                    }
+                } label: {
                     Image(systemName: "globe")
                 }
                 .help("Open on GitHub")
