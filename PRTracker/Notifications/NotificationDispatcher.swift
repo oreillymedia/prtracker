@@ -114,7 +114,12 @@ final class NotificationDispatcher {
         let stateID = "state_\(pr.id)_\(pr.state.rawValue)"
         if !existing.contains(stateID),
            [PRState.merged, .closed].contains(pr.state) {
-            out.append(NotificationCandidate(kind: .stateChange(newState: pr.state, actorLogin: nil), prID: pr.id))
+            let matchingType: EventType = (pr.state == .merged) ? .merged : .closed
+            let actorLogin = pr.timeline
+                .filter { $0.type == matchingType }
+                .max(by: { $0.at < $1.at })?
+                .actor?.login
+            out.append(NotificationCandidate(kind: .stateChange(newState: pr.state, actorLogin: actorLogin), prID: pr.id))
         }
 
         let pushID = "push_\(pr.id)_\(pr.headSha)"

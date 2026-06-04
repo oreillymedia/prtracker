@@ -38,6 +38,16 @@ struct DetailRightRail: View {
                     Text("· \(pr.changedFiles) files").foregroundStyle(Tokens.textFaint)
                 }.font(.system(size: 12))
             }
+            section("Opened") {
+                Text(RelativeTimeFormatter.short(pr.openedAt))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Tokens.textMuted)
+            }
+            section("Updated") {
+                Text(RelativeTimeFormatter.short(pr.updatedAt))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Tokens.textMuted)
+            }
         }
         .padding(18)
         .frame(width: 260)

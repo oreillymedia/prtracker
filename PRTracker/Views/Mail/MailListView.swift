@@ -38,6 +38,9 @@ struct MailListView: View {
                                     .background(appState.selectedPRID == pr.id ? Tokens.rowSelect : Color.clear)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Mark as resolved") { markAsResolved(pr) }
+                            }
                         }
                     }
                 }
@@ -85,8 +88,6 @@ struct MailListView: View {
             // lazy-fetched on detail open), so the stricter "has unresolved
             // threads" check would falsely exclude most PRs.
             return pr.state == .open || pr.state == .draft
-        case .mentions:
-            return pr.mentionHint != nil
         case .mine:
             return pr.author.login == viewerLogin && pr.state == .open
         case .done:
@@ -115,6 +116,21 @@ struct MailListView: View {
             c[filter] = prs.filter { matches($0, filter: filter) }.count
         }
         return c
+    }
+
+    // MARK: - Actions
+
+    /// Marks every thread on the PR as resolved by flipping `isDone` on each
+    /// non-viewer message. Mirrors per-thread "Resolve" in ThreadsView, applied
+    /// to the same item set TodoHelpers.threads(for:) builds from.
+    private func markAsResolved(_ pr: PullRequest) {
+        for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
+            if e.actor?.login != viewerLogin { e.isDone = true }
+        }
+        for c in pr.reviewComments where c.author.login != viewerLogin {
+            c.isDone = true
+        }
+        try? ctx.save()
     }
 
     // MARK: - Keyboard navigation

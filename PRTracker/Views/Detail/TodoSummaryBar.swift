@@ -12,7 +12,7 @@ struct TodoSummaryBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            TodoRing(done: counts.done, total: counts.total, size: 32, state: ringState)
+            TodoRing(done: counts.done, total: counts.total, size: 32, state: ringState, inProgressIcon: "highlighter")
             VStack(alignment: .leading, spacing: 2) {
                 Text(primaryLine)
                     .font(.system(size: 13, weight: .bold))

@@ -27,7 +27,6 @@ struct PRDetailView: View {
             MailDetailHeader(
                 pr: pr,
                 isRefreshing: isLoading,
-                lastUpdatedAt: pr.updatedAt,
                 onRefresh: { Task { await loadTimeline() } },
                 todoCounts: todoCounts,
                 ciFailedForMe: ciFailedForMe)
