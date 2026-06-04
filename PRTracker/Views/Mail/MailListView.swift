@@ -18,7 +18,6 @@ struct MailListView: View {
         let visible = visiblePRs(filter: appState.activeFilter)
 
         VStack(spacing: 0) {
-            FilterPillBar(active: $appState.activeFilter, counts: counts)
             ScrollView {
                 if visible.isEmpty {
                     Text("Nothing in this filter.")
@@ -76,6 +75,17 @@ struct MailListView: View {
             let ids = visiblePRs(filter: newFilter).map(\.id)
             appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
         }
+        .toolbar {
+            ToolbarItem {
+                Picker("Filter", selection: $appState.activeFilter) {
+                    ForEach(MailFilter.allCases) { filter in
+                        Text(label(filter, count: counts[filter] ?? 0)).tag(filter)
+                    }
+                }
+                .pickerStyle(.menu)
+                .help("Filter pull requests")
+            }
+        }
     }
 
     // MARK: - Filter predicates
@@ -120,6 +130,10 @@ struct MailListView: View {
             c[filter] = prs.filter { matches($0, filter: filter) }.count
         }
         return c
+    }
+
+    private func label(_ filter: MailFilter, count: Int) -> String {
+        count > 0 ? "\(filter.label) (\(count))" : filter.label
     }
 
     // MARK: - Actions
