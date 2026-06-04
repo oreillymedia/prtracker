@@ -14,7 +14,7 @@ struct MailListView: View {
 
     var body: some View {
         @Bindable var appState = appState
-        let counts = pillCounts()
+        let counts = filterCounts()
         let visible = visiblePRs(filter: appState.activeFilter)
 
         VStack(spacing: 0) {
@@ -124,7 +124,7 @@ struct MailListView: View {
         return a.updatedAt > b.updatedAt
     }
 
-    private func pillCounts() -> [MailFilter: Int] {
+    private func filterCounts() -> [MailFilter: Int] {
         var c: [MailFilter: Int] = [:]
         for filter in MailFilter.allCases {
             c[filter] = prs.filter { matches($0, filter: filter) }.count
