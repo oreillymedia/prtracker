@@ -11,6 +11,7 @@ struct PRDetailView: View {
 
     @State private var loadError: GitHubError?
     @State private var isLoading: Bool = false
+    @State private var inspectorPresented: Bool = true
 
     private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
 
@@ -24,12 +25,7 @@ struct PRDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MailDetailHeader(
-                pr: pr,
-                isRefreshing: isLoading,
-                onRefresh: { Task { await loadTimeline() } },
-                todoCounts: todoCounts,
-                ciFailedForMe: ciFailedForMe)
+            MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe)
             HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -42,6 +38,28 @@ struct PRDetailView: View {
                     }.padding(20)
                 }
                 DetailRightRail(pr: pr)
+            }
+        }
+        .navigationTitle(pr.title)
+        .navigationSubtitle("#\(pr.number)")
+        .toolbar {
+            ToolbarItemGroup {
+                Button { Task { await loadTimeline() } } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh")
+                .disabled(isLoading)
+
+                Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
+                    Image(systemName: "arrow.up.forward.square")
+                }
+                .help("Open on GitHub")
+            }
+            ToolbarItem {
+                Button { inspectorPresented.toggle() } label: {
+                    Image(systemName: "sidebar.trailing")
+                }
+                .help("Toggle details")
             }
         }
         .task(id: pr.id) {

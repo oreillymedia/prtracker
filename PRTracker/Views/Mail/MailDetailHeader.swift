@@ -2,80 +2,22 @@ import SwiftUI
 
 struct MailDetailHeader: View {
     let pr: PullRequest
-    let isRefreshing: Bool
-    let onRefresh: () -> Void
     let todoCounts: TodoCounts
     let ciFailedForMe: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            titleRow
             metadataRow
             if todoCounts.total > 0 || ciFailedForMe {
                 TodoSummaryBar(counts: todoCounts, ciFailedForMe: ciFailedForMe)
-                    .padding(.top, 4)
+                    .padding(.top, 2)
             }
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 12)
-        .background(Tokens.panelBg)
-        .overlay(Rectangle().fill(Tokens.border).frame(height: 0.5), alignment: .bottom)
-    }
-
-    private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(pr.title)
-                .font(.system(size: 17, weight: .bold))
-                .tracking(-0.2)
-                .lineLimit(nil)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            updatedChip
-            refreshButton
-            openOnGitHubLink
-        }
-    }
-
-    @ViewBuilder private var updatedChip: some View {
-        if isRefreshing {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("Refreshing…").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
-            }
-        } else if let t = pr.repo.lastFetchedAt {
-            HStack(spacing: 6) {
-                Image(systemName: "clock").font(.system(size: 11))
-                Text("Fetched \(RelativeTimeFormatter.short(t))").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
-            }
-        }
-    }
-
-    private var openOnGitHubLink: some View {
-        Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
-            HStack(spacing: 4) {
-                Text("Open on GitHub").font(.system(size: 12, weight: .medium)).foregroundStyle(Tokens.text)
-                Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(Tokens.textMuted)
-            }
-            .padding(.horizontal, 10).frame(height: 24)
-            .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 5))
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Tokens.border, lineWidth: 0.5))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var refreshButton: some View {
-        Button(action: onRefresh) {
-            Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Tokens.textMuted)
-                .frame(width: 24, height: 24)
-                .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 5))
-                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Tokens.border, lineWidth: 0.5))
-        }
-        .buttonStyle(.plain)
-        .disabled(isRefreshing)
-        .help("Refresh")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(Divider(), alignment: .bottom)
     }
 
     private var metadataRow: some View {
