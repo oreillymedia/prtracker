@@ -17,42 +17,32 @@ struct MailListView: View {
         let counts = filterCounts()
         let visible = visiblePRs(filter: appState.activeFilter)
 
-        VStack(spacing: 0) {
-            ScrollView {
-                if visible.isEmpty {
-                    Text("Nothing in this filter.")
-                        .font(.system(size: 12.5).italic())
-                        .foregroundStyle(Tokens.textFaint)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 40)
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(visible) { pr in
-                            Button {
-                                appState.selectedPRID = pr.id
-                            } label: {
-                                MailRowView(pr: pr,
-                                            isSelected: appState.selectedPRID == pr.id,
-                                            viewerLogin: viewerLogin)
-                                    .background(appState.selectedPRID == pr.id ? Tokens.rowSelect : Color.clear)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                if isResolved(pr) {
-                                    Button("Mark as unresolved") { markAsUnresolved(pr) }
-                                } else {
-                                    Button("Mark as resolved") { markAsResolved(pr) }
-                                }
+        List(selection: $appState.selectedPRID) {
+            if visible.isEmpty {
+                Text("Nothing in this filter.")
+                    .font(.system(size: 12.5).italic())
+                    .foregroundStyle(Tokens.textFaint)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 40)
+                    .listRowSeparator(.hidden)
+                    .selectionDisabled()
+            } else {
+                ForEach(visible) { pr in
+                    MailRowView(pr: pr, isSelected: appState.selectedPRID == pr.id, viewerLogin: viewerLogin)
+                        .tag(pr.id)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .contextMenu {
+                            if isResolved(pr) {
+                                Button("Mark as unresolved") { markAsUnresolved(pr) }
+                            } else {
+                                Button("Mark as resolved") { markAsResolved(pr) }
                             }
                         }
-                    }
                 }
             }
-            .focusable()
-            .focusEffectDisabled()
-            .onKeyPress(.upArrow)   { moveSelection(by: -1, in: visible); return .handled }
-            .onKeyPress(.downArrow) { moveSelection(by:  1, in: visible); return .handled }
         }
+        .listStyle(.sidebar)
         .onAppear {
             // Clear a restored selection that no longer maps to a known PR
             // (the row was deleted between runs).
@@ -166,17 +156,4 @@ struct MailListView: View {
         try? ctx.save()
     }
 
-    // MARK: - Keyboard navigation
-
-    private func moveSelection(by delta: Int, in visible: [PullRequest]) {
-        guard !visible.isEmpty else { return }
-        let ids = visible.map(\.id)
-        guard let current = appState.selectedPRID,
-              let idx = ids.firstIndex(of: current) else {
-            appState.selectedPRID = delta > 0 ? ids.first : ids.last
-            return
-        }
-        let next = max(0, min(ids.count - 1, idx + delta))
-        appState.selectedPRID = ids[next]
-    }
 }

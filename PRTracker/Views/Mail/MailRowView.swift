@@ -5,8 +5,6 @@ struct MailRowView: View {
     let isSelected: Bool
     let viewerLogin: String
 
-    @State private var hover = false
-
     private var todoCounts: TodoCounts {
         TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
     }
@@ -61,10 +59,7 @@ struct MailRowView: View {
         .padding(.leading, 14)
         .padding(.trailing, 12)
         .contentShape(Rectangle())
-        .background(rowBackground)
-        .overlay(Rectangle().fill(Tokens.hairline).frame(height: 0.5), alignment: .bottom)
         .opacity(dimRow ? 0.55 : 1.0)
-        .onHover { hover = $0 }
     }
 
     private var ringState: TodoRing.RingState {
@@ -75,19 +70,11 @@ struct MailRowView: View {
         return .waiting
     }
 
-    private var rowBackground: Color {
-        // Selection background is painted by the wrapping `Button` in
-        // `MailListView` (we own selection styling end-to-end now to avoid
-        // `List`'s system blue stomping on row content). Here we only paint hover.
-        if hover && !isSelected { return Tokens.rowHover }
-        return .clear
-    }
-
     private var topLine: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(pr.title)
                 .font(.system(size: 13, weight: titleWeight))
-                .foregroundStyle(isSelected ? Tokens.accentText : Tokens.text)
+                .foregroundStyle(Tokens.text)
                 .tracking(-0.05)
                 .lineLimit(1)
                 .truncationMode(.tail)
