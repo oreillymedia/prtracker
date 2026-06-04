@@ -6,53 +6,53 @@ struct DetailRightRail: View {
     @State private var showCIDetails: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            section("Status") {
-                row("Review", pill: pr.reviewState?.rawValue ?? "—", tint: reviewTint)
-                row("CI", pill: ciSummary, tint: ciTint)
-                row("Mergeable", pill: mergeableLabel, tint: mergeTint)
-            }
-            ciChecksSection
-            section("Reviewers") {
-                ForEach(reviewersExcludingAuthor) { r in
-                    HStack(spacing: 8) {
-                        AvatarView(user: r.user, size: 18)
-                        Text(r.user.name ?? r.user.login).metaText()
-                        Spacer()
-                        Text(r.state.rawValue).microText().foregroundStyle(Tokens.textMuted)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                section("Status") {
+                    row("Review", pill: pr.reviewState?.rawValue ?? "—", tint: reviewTint)
+                    row("CI", pill: ciSummary, tint: ciTint)
+                    row("Mergeable", pill: mergeableLabel, tint: mergeTint)
+                }
+                ciChecksSection
+                section("Reviewers") {
+                    ForEach(reviewersExcludingAuthor) { r in
+                        HStack(spacing: 8) {
+                            AvatarView(user: r.user, size: 18)
+                            Text(r.user.name ?? r.user.login).metaText()
+                            Spacer()
+                            Text(r.state.rawValue).microText().foregroundStyle(Tokens.textMuted)
+                        }
                     }
                 }
-            }
-            section("Labels") {
-                FlowLayout(spacing: 6) {
-                    ForEach(pr.labels) { l in
-                        Text(l.name).microText().padding(.horizontal, 8).padding(.vertical, 2)
-                            .background(Tokens.hairline, in: Capsule()).foregroundStyle(Tokens.textMuted)
+                section("Labels") {
+                    FlowLayout(spacing: 6) {
+                        ForEach(pr.labels) { l in
+                            Text(l.name).microText().padding(.horizontal, 8).padding(.vertical, 2)
+                                .background(Tokens.hairline, in: Capsule()).foregroundStyle(Tokens.textMuted)
+                        }
                     }
                 }
+                section("Changes") {
+                    HStack(spacing: 6) {
+                        Text("+\(pr.additions)").foregroundStyle(Tokens.approved)
+                        Text("−\(pr.deletions)").foregroundStyle(Tokens.changes)
+                        Text("· \(pr.changedFiles) files").foregroundStyle(Tokens.textFaint)
+                    }.font(.system(size: 12))
+                }
+                section("Opened") {
+                    Text(RelativeTimeFormatter.short(pr.openedAt))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
+                section("Updated") {
+                    Text(RelativeTimeFormatter.short(pr.updatedAt))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
             }
-            section("Changes") {
-                HStack(spacing: 6) {
-                    Text("+\(pr.additions)").foregroundStyle(Tokens.approved)
-                    Text("−\(pr.deletions)").foregroundStyle(Tokens.changes)
-                    Text("· \(pr.changedFiles) files").foregroundStyle(Tokens.textFaint)
-                }.font(.system(size: 12))
-            }
-            section("Opened") {
-                Text(RelativeTimeFormatter.short(pr.openedAt))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Tokens.textMuted)
-            }
-            section("Updated") {
-                Text(RelativeTimeFormatter.short(pr.updatedAt))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Tokens.textMuted)
-            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(18)
-        .frame(width: 260)
-        .background(Tokens.panelBg)
-        .overlay(Rectangle().fill(Tokens.border).frame(width: 0.5), alignment: .leading)
     }
 
     @ViewBuilder

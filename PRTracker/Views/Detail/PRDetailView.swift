@@ -37,11 +37,14 @@ struct PRDetailView: View {
                         ThreadsView(pr: pr, viewerLogin: viewerLogin, syncActor: syncActor)
                     }.padding(20)
                 }
-                DetailRightRail(pr: pr)
             }
         }
         .navigationTitle(pr.title)
         .navigationSubtitle("#\(pr.number)")
+        .inspector(isPresented: $inspectorPresented) {
+            DetailRightRail(pr: pr)
+                .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button { Task { await loadTimeline() } } label: {
