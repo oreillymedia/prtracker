@@ -51,7 +51,7 @@ struct PRDetailView: View {
                 .disabled(isLoading)
 
                 Link(destination: URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)")!) {
-                    Image(systemName: "arrow.up.forward.square")
+                    Image(systemName: "globe")
                 }
                 .help("Open on GitHub")
             }
