@@ -16,9 +16,6 @@ enum Tokens {
     // AppKit semantic colors so they adapt to Increase Contrast / Reduce
     // Transparency automatically. Glass for the navigation layer is provided by
     // NavigationSplitView / .inspector / .toolbar — not by these tokens.
-    static let windowBg     = Color(nsColor: .windowBackgroundColor)
-    static let panelBg      = Color(nsColor: .windowBackgroundColor)   // transitional; uses removed in Tasks 3–4
-    static let sidebarBg    = Color(nsColor: .windowBackgroundColor)   // transitional; use removed in Task 2
     static let contentBg    = Color(nsColor: .textBackgroundColor)     // inset field / nested block surface
     static let border       = Color(nsColor: .separatorColor)
     static let borderStrong = Color(nsColor: .separatorColor)
