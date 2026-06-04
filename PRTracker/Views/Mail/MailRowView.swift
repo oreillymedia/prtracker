@@ -56,7 +56,6 @@ struct MailRowView: View {
         }
         .padding(.top, 10)
         .padding(.bottom, 11)
-        .padding(.leading, 8)
         .padding(.trailing, 12)
         .contentShape(Rectangle())
         .opacity(dimRow ? 0.55 : 1.0)

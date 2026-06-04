@@ -42,6 +42,7 @@ struct MailListView: View {
             }
         }
         .listStyle(.sidebar)
+        .tint(Color(red: 0.55, green: 0.72, blue: 1.0))
         .onAppear {
             // Clear a restored selection that no longer maps to a known PR
             // (the row was deleted between runs).
