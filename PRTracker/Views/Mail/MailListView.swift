@@ -14,8 +14,12 @@ struct MailListView: View {
 
     var body: some View {
         @Bindable var appState = appState
-        let counts = filterCounts()
-        let visible = visiblePRs(filter: appState.activeFilter)
+        // Precompute the expensive per-PR todo data ONCE per render, instead of
+        // rebuilding a PR's threads once per filter AND O(n log n) times inside
+        // the source-list sort comparator. See todoMeta().
+        let meta = todoMeta()
+        let counts = filterCounts(meta: meta)
+        let visible = visiblePRs(filter: appState.activeFilter, meta: meta)
 
         List(selection: $appState.selectedPRID) {
             if visible.isEmpty {
@@ -55,14 +59,21 @@ struct MailListView: View {
                 appState.selectedPRID = nil
             }
         }
-        .onChange(of: appState.selectedPRID) { _, newID in
-            // Update lastReadAt on the newly selected PR (semantically: lastSeenAt).
-            guard let newID, let pr = prs.first(where: { $0.id == newID }) else { return }
+        .task(id: appState.selectedPRID) {
+            // Mark the selected PR read — debounced and OFF the selection hot
+            // path. Writing to the store synchronously in onChange made every
+            // keypress persist to disk and re-publish the @Query (a second full
+            // re-render plus "selection updated multiple times per frame"),
+            // which froze keyboard navigation. .task(id:) cancels the pending
+            // write whenever selection moves on, so only a settled selection saves.
+            guard let id = appState.selectedPRID else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, let pr = prs.first(where: { $0.id == id }) else { return }
             pr.lastReadAt = .now
             try? ctx.save()
         }
         .onChange(of: appState.activeFilter) { _, newFilter in
-            let ids = visiblePRs(filter: newFilter).map(\.id)
+            let ids = visiblePRs(filter: newFilter, meta: todoMeta()).map(\.id)
             appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
         }
         .toolbar {
@@ -80,12 +91,39 @@ struct MailListView: View {
 
     // MARK: - Filter predicates
 
-    private func matches(_ pr: PullRequest, filter: MailFilter) -> Bool {
+    /// Precomputed per-PR todo data. Building a PR's threads from its timeline +
+    /// review comments is relatively expensive; it was previously recomputed
+    /// once per filter and O(n log n) times inside the source-list sort. We now
+    /// compute it once per render and look it up by PR id everywhere below.
+    private struct PRMeta { let ball: Bool; let counts: TodoCounts }
+
+    private func todoMeta() -> [String: PRMeta] {
+        var out: [String: PRMeta] = [:]
+        out.reserveCapacity(prs.count)
+        for pr in prs {
+            let counts = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+            // Mirror of TodoHelpers.ballInMyCourt, but reusing `counts` so we
+            // don't build the PR's threads a second time.
+            let ball: Bool
+            if pr.state == .merged || pr.state == .closed {
+                ball = false
+            } else if counts.openMessages > 0 {
+                ball = true
+            } else {
+                let mine = pr.author.login == viewerLogin
+                ball = mine && (pr.reviewState == .changesRequested || pr.ciFail > 0)
+            }
+            out[pr.id] = PRMeta(ball: ball, counts: counts)
+        }
+        return out
+    }
+
+    private func matches(_ pr: PullRequest, filter: MailFilter, meta: [String: PRMeta]) -> Bool {
         switch filter {
         case .all:
             return true
         case .awaitingMe:
-            return TodoHelpers.ballInMyCourt(pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+            return meta[pr.id]?.ball ?? false
         case .open:
             // GitHub-style "open": PR is not merged/closed. Source-list rows
             // don't have full thread data (timeline + reviewComments are
@@ -95,29 +133,27 @@ struct MailListView: View {
         case .mine:
             return pr.author.login == viewerLogin && pr.state == .open
         case .done:
-            let counts = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
-            return pr.state == .open && counts.total > 0 && counts.open == 0
+            let counts = meta[pr.id]?.counts
+            return pr.state == .open && (counts?.total ?? 0) > 0 && (counts?.open ?? 0) == 0
         case .recent:
             return pr.state == .merged
         }
     }
 
-    private func visiblePRs(filter: MailFilter) -> [PullRequest] {
-        prs.filter { matches($0, filter: filter) }
-           .sorted(by: ballInMyCourtFirst)
+    private func visiblePRs(filter: MailFilter, meta: [String: PRMeta]) -> [PullRequest] {
+        prs.filter { matches($0, filter: filter, meta: meta) }
+           .sorted { a, b in
+               let aw = (meta[a.id]?.ball ?? false) ? 0 : 1
+               let bw = (meta[b.id]?.ball ?? false) ? 0 : 1
+               if aw != bw { return aw < bw }
+               return a.updatedAt > b.updatedAt
+           }
     }
 
-    private func ballInMyCourtFirst(_ a: PullRequest, _ b: PullRequest) -> Bool {
-        let aw = TodoHelpers.ballInMyCourt(a, viewerLogin: viewerLogin, lastSeenAt: a.lastSeenAt) ? 0 : 1
-        let bw = TodoHelpers.ballInMyCourt(b, viewerLogin: viewerLogin, lastSeenAt: b.lastSeenAt) ? 0 : 1
-        if aw != bw { return aw < bw }
-        return a.updatedAt > b.updatedAt
-    }
-
-    private func filterCounts() -> [MailFilter: Int] {
+    private func filterCounts(meta: [String: PRMeta]) -> [MailFilter: Int] {
         var c: [MailFilter: Int] = [:]
         for filter in MailFilter.allCases {
-            c[filter] = prs.filter { matches($0, filter: filter) }.count
+            c[filter] = prs.filter { matches($0, filter: filter, meta: meta) }.count
         }
         return c
     }
