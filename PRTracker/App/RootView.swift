@@ -74,7 +74,6 @@ struct RootView: View {
 struct MainView: View {
     @Environment(AppState.self) private var appState
     @Query private var viewerStates: [ViewerState]
-    @Query private var repos: [Repo]
     @Query private var prs: [PullRequest]
 
     let coordinator: SyncCoordinator
@@ -82,18 +81,16 @@ struct MainView: View {
 
     var body: some View {
         let viewer = viewerStates.first?.viewer
-        let repo = repos.first(where: \.isActive)
 
-        HStack(spacing: 0) {
+        NavigationSplitView {
             MailSourceColumn(syncActor: coordinator.syncActorForView, onOpenSettings: onOpenSettings)
-
+                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+        } detail: {
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 MailEmptyDetailView()
             }
         }
-        .navigationTitle(repo?.id ?? "")
     }
 }

@@ -17,10 +17,8 @@ struct MailSourceColumn: View {
 
             MailListView(syncActor: syncActor)
 
+            Divider()
             AccountFooter(viewer: viewer, onOpenSettings: onOpenSettings)
         }
-        .frame(width: 380)
-        .background(Tokens.sidebarBg)
-        .overlay(Rectangle().fill(Tokens.border).frame(width: 0.5), alignment: .trailing)
     }
 }
