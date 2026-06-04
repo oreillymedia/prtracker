@@ -43,7 +43,7 @@ struct ThreadCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(hasNew ? Tokens.accent.opacity(0.4) : Tokens.border, lineWidth: 0.5)
         )
-        .shadow(color: resolved ? .clear : Color.black.opacity(0.05), radius: 1, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.05), radius: 1.5, y: 1)
         .opacity(resolved ? 0.78 : 1.0)
         .animation(.easeOut(duration: 0.18), value: collapsed)
     }

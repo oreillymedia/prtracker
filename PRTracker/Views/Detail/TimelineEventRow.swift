@@ -85,6 +85,7 @@ struct TimelineEventRow: View {
         .padding(.vertical, 10)
         .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Tokens.border, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.05), radius: 1.5, y: 1)
     }
 
     // MARK: - Inline content (everything else)

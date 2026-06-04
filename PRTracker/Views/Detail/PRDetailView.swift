@@ -38,6 +38,7 @@ struct PRDetailView: View {
                 }.padding(20)
             }
         }
+        .background(Color(nsColor: .underPageBackgroundColor))
         .navigationTitle(pr.title)
         .inspector(isPresented: $inspectorPresented) {
             DetailRightRail(pr: pr)
