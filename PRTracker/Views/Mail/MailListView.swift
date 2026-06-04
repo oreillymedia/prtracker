@@ -30,7 +30,6 @@ struct MailListView: View {
                 ForEach(visible) { pr in
                     MailRowView(pr: pr, isSelected: appState.selectedPRID == pr.id, viewerLogin: viewerLogin)
                         .tag(pr.id)
-                        .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .contextMenu {
                             if isResolved(pr) {
