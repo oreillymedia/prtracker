@@ -5,6 +5,16 @@ struct MailRowView: View {
     let isSelected: Bool
     let viewerLogin: String
 
+    /// `.increased` when this row is the selected row of a focused list — i.e.
+    /// when the native accent selection capsule is drawn behind it. We flip the
+    /// row's content to white in that state so it reads on the accent (and stays
+    /// dark on the gray, unfocused selection, which is the standard behavior).
+    @Environment(\.backgroundProminence) private var prominence
+    private var highlighted: Bool { prominence == .increased }
+    private var primaryColor: Color { highlighted ? .white : Tokens.text }
+    private var secondaryColor: Color { highlighted ? Color.white.opacity(0.85) : Tokens.textMuted }
+    private var faintColor: Color { highlighted ? Color.white.opacity(0.7) : Tokens.textFaint }
+
     private var todoCounts: TodoCounts {
         TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
     }
@@ -39,7 +49,7 @@ struct MailRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState, inProgressIcon: "highlighter")
+            TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState, inProgressIcon: "highlighter", highlighted: highlighted)
 
             VStack(alignment: .leading, spacing: 4) {
                 topLine
@@ -47,7 +57,7 @@ struct MailRowView: View {
                 if let hint = preview, !dimRow {
                     Text(hint)
                         .font(.system(size: 11.5))
-                        .foregroundStyle(Tokens.textMuted)
+                        .foregroundStyle(secondaryColor)
                         .lineLimit(2)
                         .padding(.top, 1)
                 }
@@ -73,14 +83,14 @@ struct MailRowView: View {
         HStack(alignment: .center, spacing: 6) {
             Text(pr.title)
                 .font(.system(size: 13, weight: titleWeight))
-                .foregroundStyle(Tokens.text)
+                .foregroundStyle(primaryColor)
                 .tracking(-0.05)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(RelativeTimeFormatter.short(pr.updatedAt))
                 .font(.system(size: 10.5).monospacedDigit())
-                .foregroundStyle(Tokens.textFaint)
+                .foregroundStyle(faintColor)
                 .lineLimit(1)
         }
     }
@@ -90,10 +100,10 @@ struct MailRowView: View {
             AvatarView(user: pr.author, size: 15)
             Text(pr.author.name ?? pr.author.login)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Tokens.textMuted)
+                .foregroundStyle(secondaryColor)
                 .lineLimit(1)
-            Text("·").foregroundStyle(Tokens.textFaint)
-            Text("#\(pr.number)").font(.system(size: 11).monospacedDigit()).foregroundStyle(Tokens.textFaint)
+            Text("·").foregroundStyle(faintColor)
+            Text("#\(pr.number)").font(.system(size: 11).monospacedDigit()).foregroundStyle(faintColor)
             Spacer(minLength: 0)
             statusChip
         }
@@ -107,33 +117,33 @@ struct MailRowView: View {
                 Image(systemName: "arrow.triangle.merge").font(.system(size: 11).weight(.semibold))
                 Text("Merged").font(.system(size: 10.5, weight: .semibold))
             }
-            .foregroundStyle(Lane.recent.color)
+            .foregroundStyle(highlighted ? .white : Lane.recent.color)
         case .ciFailed:
             HStack(spacing: 3) {
                 Image(systemName: "xmark.octagon.fill").font(.system(size: 10).weight(.bold))
                 Text("CI failed").font(.system(size: 10.5, weight: .bold))
             }
-            .foregroundStyle(Tokens.changes)
+            .foregroundStyle(highlighted ? .white : Tokens.changes)
             .padding(.horizontal, 7).padding(.vertical, 1)
-            .background(Tokens.changesBg, in: Capsule())
+            .background(highlighted ? Color.white.opacity(0.22) : Tokens.changesBg, in: Capsule())
         case .caughtUp:
             HStack(spacing: 3) {
                 Image(systemName: "checkmark").font(.system(size: 10).weight(.bold))
                 Text("Caught up").font(.system(size: 10.5, weight: .semibold))
             }
-            .foregroundStyle(Tokens.approved)
+            .foregroundStyle(highlighted ? .white : Tokens.approved)
         case .forMe(let count):
             HStack(spacing: 4) {
-                Circle().fill(Tokens.accent).frame(width: 5, height: 5)
+                Circle().fill(highlighted ? Color.white : Tokens.accent).frame(width: 5, height: 5)
                 Text("\(count) for me").font(.system(size: 10.5, weight: .bold))
             }
-            .foregroundStyle(Tokens.accent)
+            .foregroundStyle(highlighted ? .white : Tokens.accent)
             .padding(.horizontal, 7).padding(.vertical, 1)
-            .background(Tokens.accentBg, in: Capsule())
+            .background(highlighted ? Color.white.opacity(0.22) : Tokens.accentBg, in: Capsule())
         case .waiting:
             Text("waiting on others")
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(Tokens.textMuted)
+                .foregroundStyle(secondaryColor)
         case .none:
             EmptyView()
         }

@@ -8,10 +8,13 @@ struct TodoRing: View {
     let size: CGFloat
     let state: RingState
     var inProgressIcon: String? = nil
+    /// When true (selected row of a focused list), render in white so the ring
+    /// reads on the accent selection capsule.
+    var highlighted: Bool = false
 
     var body: some View {
         ZStack {
-            Circle().stroke(Tokens.hairline, lineWidth: size * 0.1)
+            Circle().stroke(highlighted ? Color.white.opacity(0.3) : Tokens.hairline, lineWidth: size * 0.1)
             Circle()
                 .trim(from: 0, to: state == .ciFailed ? 1 : progress)
                 .stroke(arcColor, style: .init(lineWidth: size * 0.1, lineCap: .round))
@@ -27,6 +30,7 @@ struct TodoRing: View {
     }
 
     private var arcColor: Color {
+        if highlighted { return .white }
         switch state {
         case .allResolved: return Tokens.approved
         case .awaitingMe:  return Tokens.accent
@@ -41,13 +45,13 @@ struct TodoRing: View {
         if state == .ciFailed {
             Image(systemName: "xmark.octagon.fill")
                 .font(.system(size: size * 0.6, weight: .bold))
-                .foregroundStyle(Tokens.changes)
+                .foregroundStyle(highlighted ? .white : Tokens.changes)
         } else if total == 0 {
-            Circle().fill(Tokens.textFaint).frame(width: 2, height: 2)
+            Circle().fill(highlighted ? Color.white.opacity(0.7) : Tokens.textFaint).frame(width: 2, height: 2)
         } else if done == total {
             Image(systemName: "checkmark")
                 .font(.system(size: size * 0.55, weight: .bold))
-                .foregroundStyle(Tokens.approved)
+                .foregroundStyle(highlighted ? .white : Tokens.approved)
         } else if let inProgressIcon {
             Image(systemName: inProgressIcon)
                 .font(.system(size: size * 0.55, weight: .semibold))
