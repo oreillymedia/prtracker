@@ -26,17 +26,15 @@ struct PRDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe)
-            HStack(alignment: .top, spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if let loadError {
-                            Text("Couldn't load timeline: \(String(describing: loadError)). Click refresh to retry.")
-                                .foregroundStyle(Tokens.changes).padding(8)
-                                .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-                        }
-                        ThreadsView(pr: pr, viewerLogin: viewerLogin, syncActor: syncActor)
-                    }.padding(20)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let loadError {
+                        Text("Couldn't load timeline: \(String(describing: loadError)). Click refresh to retry.")
+                            .foregroundStyle(Tokens.changes).padding(8)
+                            .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    ThreadsView(pr: pr, viewerLogin: viewerLogin, syncActor: syncActor)
+                }.padding(20)
             }
         }
         .navigationTitle(pr.title)

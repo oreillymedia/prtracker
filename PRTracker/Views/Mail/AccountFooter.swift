@@ -23,6 +23,5 @@ struct AccountFooter: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .overlay(Rectangle().fill(Tokens.border).frame(height: 0.5), alignment: .top)
     }
 }

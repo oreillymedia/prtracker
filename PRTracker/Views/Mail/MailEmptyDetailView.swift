@@ -5,6 +5,5 @@ struct MailEmptyDetailView: View {
         ContentUnavailableView("No Pull Request Selected",
                                systemImage: "arrow.triangle.pull",
                                description: Text("Select a pull request from the sidebar."))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
