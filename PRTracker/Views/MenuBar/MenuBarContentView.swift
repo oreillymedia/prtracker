@@ -41,14 +41,19 @@ struct MenuBarContentView: View {
             .frame(maxHeight: 360)
 
             Divider()
-            menuButton("Open PR Tracker", shortcut: nil) { openWindow(id: "main") }
-            menuButton("Refresh now", shortcut: "⌘R") { Task { await coordinator.refresh() } }
-            SettingsLink {
-                menuButtonLabel("Preferences…", shortcut: "⌘,")
+            GlassEffectContainer(spacing: 6) {
+                VStack(spacing: 6) {
+                    menuButton("Open PR Tracker", shortcut: nil) { openWindow(id: "main") }
+                    menuButton("Refresh now", shortcut: "⌘R") { Task { await coordinator.refresh() } }
+                    SettingsLink {
+                        menuButtonLabel("Preferences…", shortcut: "⌘,")
+                    }
+                    .buttonStyle(.glass)
+                    menuButton("Quit", shortcut: "⌘Q") { NSApplication.shared.terminate(nil) }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
             }
-            .buttonStyle(.plain)
-            Divider()
-            menuButton("Quit", shortcut: "⌘Q") { NSApplication.shared.terminate(nil) }
         }
         .frame(width: 320)
         .task(id: prs.count) {
@@ -122,7 +127,8 @@ struct MenuBarContentView: View {
     private func menuButton(_ label: String, shortcut: String?, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             menuButtonLabel(label, shortcut: shortcut)
-        }.buttonStyle(.plain)
+        }
+        .buttonStyle(.glass)
     }
 
     private func menuButtonLabel(_ label: String, shortcut: String?) -> some View {
