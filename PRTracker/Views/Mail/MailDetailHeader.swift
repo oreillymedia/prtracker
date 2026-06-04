@@ -3,19 +3,13 @@ import SwiftUI
 struct MailDetailHeader: View {
     let pr: PullRequest
     let isRefreshing: Bool
-    let lastUpdatedAt: Date?
     let onRefresh: () -> Void
     let todoCounts: TodoCounts
     let ciFailedForMe: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            toolbarRow
-            Text(pr.title)
-                .font(.system(size: 17, weight: .bold))
-                .tracking(-0.2)
-                .lineLimit(nil)
-                .multilineTextAlignment(.leading)
+            titleRow
             metadataRow
             if todoCounts.total > 0 || ciFailedForMe {
                 TodoSummaryBar(counts: todoCounts, ciFailedForMe: ciFailedForMe)
@@ -29,29 +23,18 @@ struct MailDetailHeader: View {
         .overlay(Rectangle().fill(Tokens.border).frame(height: 0.5), alignment: .bottom)
     }
 
-    private var toolbarRow: some View {
-        HStack(spacing: 8) {
-            Text(pr.repo.name).font(.system(size: 11.5)).foregroundStyle(Tokens.textFaint)
-            Text("/").foregroundStyle(Tokens.textFaint)
-            Text("#\(pr.number)").font(.system(size: 11.5).monospacedDigit()).foregroundStyle(Tokens.textMuted)
-            Text("·").foregroundStyle(Tokens.textFaint)
-            statePill
-            Spacer()
+    private var titleRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(pr.title)
+                .font(.system(size: 17, weight: .bold))
+                .tracking(-0.2)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             updatedChip
-            openOnGitHubLink
             refreshButton
+            openOnGitHubLink
         }
-    }
-
-    @ViewBuilder private var statePill: some View {
-        let color = stateColor
-        HStack(spacing: 4) {
-            Image(systemName: stateIcon).font(.system(size: 11, weight: .semibold))
-            Text(stateLabel).font(.system(size: 10.5, weight: .semibold))
-        }
-        .padding(.horizontal, 7).padding(.vertical, 1)
-        .background(color.opacity(0.12), in: Capsule())
-        .foregroundStyle(color)
     }
 
     @ViewBuilder private var updatedChip: some View {
@@ -60,10 +43,10 @@ struct MailDetailHeader: View {
                 ProgressView().controlSize(.small)
                 Text("Refreshing…").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
             }
-        } else if let t = lastUpdatedAt {
+        } else if let t = pr.repo.lastFetchedAt {
             HStack(spacing: 6) {
                 Image(systemName: "clock").font(.system(size: 11))
-                Text("Updated \(RelativeTimeFormatter.short(t))").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
+                Text("Fetched \(RelativeTimeFormatter.short(t))").font(.system(size: 11)).foregroundStyle(Tokens.textMuted)
             }
         }
     }
@@ -111,29 +94,6 @@ struct MailDetailHeader: View {
                 .font(.system(size: 10.5).monospaced())
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(Tokens.hairline, in: RoundedRectangle(cornerRadius: 4))
-            Text("·").foregroundStyle(Tokens.textFaint)
-            Text("opened \(RelativeTimeFormatter.short(pr.openedAt))")
-                .foregroundStyle(Tokens.textFaint).font(.system(size: 11))
-        }
-    }
-
-    private var stateLabel: String {
-        switch pr.state { case .open: "Open"; case .merged: "Merged"; case .closed: "Closed"; case .draft: "Draft" }
-    }
-    private var stateIcon: String {
-        switch pr.state {
-        case .open:   "arrow.triangle.pull"
-        case .merged: "arrow.triangle.merge"
-        case .closed: "xmark.circle"
-        case .draft:  "circle.dashed"
-        }
-    }
-    private var stateColor: Color {
-        switch pr.state {
-        case .open:   Tokens.approved
-        case .merged: Lane.recent.color
-        case .closed: Tokens.changes
-        case .draft:  Tokens.textMuted
         }
     }
 }

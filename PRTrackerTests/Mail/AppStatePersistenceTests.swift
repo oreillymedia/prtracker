@@ -62,11 +62,11 @@ import Foundation
         let d = freshDefaults(suite)
         do {
             let first = AppState(defaults: d)
-            first.activeFilter = .mentions
+            first.activeFilter = .done
             first.selectedPRID = "PR_round"
         }
         let second = AppState(defaults: d)
-        #expect(second.activeFilter == .mentions)
+        #expect(second.activeFilter == .done)
         #expect(second.selectedPRID == "PR_round")
     }
 }

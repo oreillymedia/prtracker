@@ -26,19 +26,6 @@ struct MailRowView: View {
         pr.state == .open && pr.author.login == viewerLogin && pr.ciFail > 0
     }
 
-    private var bucket: Section? {
-        if pr.state == .merged { return .recent }
-        if awaitingMe { return .attention }
-        if pr.reviewers.contains(where: { $0.state == .pending && $0.user.login == viewerLogin }) {
-            return .review
-        }
-        if pr.author.login == viewerLogin && pr.state == .open { return .mine }
-        if pr.mentionHint != nil { return .mentions }
-        return .involved
-    }
-
-    private var laneColor: Color { (bucket?.lane.color) ?? Tokens.textFaint }
-
     private var titleWeight: Font.Weight {
         if awaitingMe { return .bold }
         if fullyResolved || pr.state == .merged { return .medium }
@@ -54,12 +41,6 @@ struct MailRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Rectangle()
-                .fill(laneColor)
-                .frame(width: 3)
-                .opacity(awaitingMe ? 1 : (dimRow ? 0.5 : 0.85))
-                .frame(maxHeight: .infinity)
-
             TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState, inProgressIcon: "highlighter")
 
             VStack(alignment: .leading, spacing: 4) {
