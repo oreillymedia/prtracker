@@ -38,7 +38,6 @@ struct PRDetailView: View {
             }
         }
         .navigationTitle(pr.title)
-        .navigationSubtitle("#\(pr.number)")
         .inspector(isPresented: $inspectorPresented) {
             DetailRightRail(pr: pr)
                 .inspectorColumnWidth(min: 220, ideal: 260, max: 320)

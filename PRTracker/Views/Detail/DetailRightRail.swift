@@ -8,6 +8,11 @@ struct DetailRightRail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                section("Pull Request") {
+                    Text("#\(pr.number)")
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Tokens.textMuted)
+                }
                 section("Status") {
                     row("Review", pill: pr.reviewState?.rawValue ?? "—", tint: reviewTint)
                     row("CI", pill: ciSummary, tint: ciTint)
