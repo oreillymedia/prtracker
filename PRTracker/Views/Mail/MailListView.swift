@@ -39,7 +39,11 @@ struct MailListView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
-                                Button("Mark as resolved") { markAsResolved(pr) }
+                                if isResolved(pr) {
+                                    Button("Mark as unresolved") { markAsUnresolved(pr) }
+                                } else {
+                                    Button("Mark as resolved") { markAsResolved(pr) }
+                                }
                             }
                         }
                     }
@@ -120,15 +124,30 @@ struct MailListView: View {
 
     // MARK: - Actions
 
-    /// Marks every thread on the PR as resolved by flipping `isDone` on each
-    /// non-viewer message. Mirrors per-thread "Resolve" in ThreadsView, applied
-    /// to the same item set TodoHelpers.threads(for:) builds from.
+    private func isResolved(_ pr: PullRequest) -> Bool {
+        guard pr.state == .open else { return false }
+        let counts = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
+        guard counts.total > 0, counts.open == 0 else { return false }
+        if pr.author.login == viewerLogin && pr.ciFail > 0 { return false }
+        return true
+    }
+
     private func markAsResolved(_ pr: PullRequest) {
         for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
             if e.actor?.login != viewerLogin { e.isDone = true }
         }
         for c in pr.reviewComments where c.author.login != viewerLogin {
             c.isDone = true
+        }
+        try? ctx.save()
+    }
+
+    private func markAsUnresolved(_ pr: PullRequest) {
+        for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
+            if e.actor?.login != viewerLogin { e.isDone = false }
+        }
+        for c in pr.reviewComments where c.author.login != viewerLogin {
+            c.isDone = false
         }
         try? ctx.save()
     }
