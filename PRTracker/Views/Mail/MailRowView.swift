@@ -2,6 +2,10 @@ import SwiftUI
 
 struct MailRowView: View {
     let pr: PullRequest
+    /// Thread-derived data precomputed once per PR by the list (see `TodoHelpers.rowMeta`).
+    /// The row never rebuilds threads itself. Optional only defensively — a visible row
+    /// always has an entry; nil renders a benign empty row.
+    let meta: PRRowMeta?
     let isSelected: Bool
     let viewerLogin: String
 
@@ -16,16 +20,11 @@ struct MailRowView: View {
     private var secondaryColor: Color { highlighted ? Color.white.opacity(0.85) : Tokens.textMuted }
     private var faintColor: Color { highlighted ? Color.white.opacity(0.7) : Tokens.textFaint }
 
-    private var todoCounts: TodoCounts {
-        TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
-    }
-
-    private var awaitingMe: Bool {
-        TodoHelpers.ballInMyCourt(pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
-    }
+    private var counts: TodoCounts { meta?.counts ?? TodoCounts(total: 0, done: 0, open: 0, openMessages: 0) }
+    private var awaitingMe: Bool { meta?.ball ?? false }
 
     private var fullyResolved: Bool {
-        guard pr.state == .open, todoCounts.total > 0, todoCounts.open == 0 else { return false }
+        guard pr.state == .open, counts.total > 0, counts.open == 0 else { return false }
         // Author still owes a fix if CI is red on their own PR.
         if pr.author.login == viewerLogin && pr.ciFail > 0 { return false }
         return true
@@ -50,7 +49,7 @@ struct MailRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            TodoRing(done: todoCounts.done, total: todoCounts.total, size: 24, state: ringState, inProgressIcon: "highlighter", highlighted: highlighted)
+            TodoRing(done: counts.done, total: counts.total, size: 24, state: ringState, inProgressIcon: "highlighter", highlighted: highlighted)
 
             VStack(alignment: .leading, spacing: 4) {
                 topLine
@@ -74,8 +73,8 @@ struct MailRowView: View {
 
     private var ringState: TodoRing.RingState {
         if ciFailedForMe { return .ciFailed }
-        if todoCounts.total == 0 { return .empty }
-        if todoCounts.open == 0 { return .allResolved }
+        if counts.total == 0 { return .empty }
+        if counts.open == 0 { return .allResolved }
         if awaitingMe { return .awaitingMe }
         return .waiting
     }
@@ -158,21 +157,11 @@ struct MailRowView: View {
         // forMe — fixing the build is the implicit todo.
         if ciFailedForMe { return .ciFailed }
         if fullyResolved { return .caughtUp }
-        if awaitingMe { return .forMe(todoCounts.openMessages) }
-        if todoCounts.total > 0 { return .waiting }
+        if awaitingMe { return .forMe(counts.openMessages) }
+        if counts.total > 0 { return .waiting }
         return .none
     }
 
-    /// Preview line: first open non-mine message body, prefixed with the author's first name.
-    private var preview: String? {
-        let threads = TodoHelpers.threads(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
-        for thread in threads where !TodoHelpers.isResolved(thread) {
-            for msg in thread.messages where !msg.isMine && !msg.isDone {
-                let firstName = (msg.actor.name ?? msg.actor.login).split(separator: " ").first.map(String.init)
-                    ?? msg.actor.login
-                return "\(firstName): \(msg.body)"
-            }
-        }
-        return pr.attentionHint
-    }
+    /// Preview line: precomputed once per PR by the list (see `TodoHelpers.rowMeta`).
+    private var preview: String? { meta?.preview ?? pr.attentionHint }
 }

@@ -54,6 +54,14 @@ struct TodoCounts: Equatable {
     let openMessages: Int
 }
 
+/// Everything a source-list row needs that is derived from a PR's thread tree.
+/// Built once per PR (see `TodoHelpers.rowMeta`) so rows don't each rebuild threads.
+struct PRRowMeta: Equatable {
+    let counts: TodoCounts
+    let ball: Bool
+    let preview: String?
+}
+
 // MARK: - Helpers
 
 enum TodoHelpers {
@@ -143,6 +151,43 @@ enum TodoHelpers {
         // Failing CI on a PR I authored is a todo for me, regardless of comments.
         if mine && pr.ciFail > 0 { return true }
         return false
+    }
+
+    /// Builds the PR's thread tree ONCE and derives counts, ball-in-my-court, and
+    /// the source-list preview line from it. This is the per-render entry point for
+    /// the source list — it folds together what `todoCounts`, `ballInMyCourt`, and
+    /// the row's preview logic would otherwise each rebuild from scratch.
+    static func rowMeta(for pr: PullRequest, viewerLogin: String, lastSeenAt: Date?) -> PRRowMeta {
+        let ts = threads(for: pr, viewerLogin: viewerLogin, lastSeenAt: lastSeenAt)
+
+        let total = ts.count
+        let done = ts.filter(isResolved).count
+        let openMessages = ts.reduce(0) { $0 + openCount($1) }
+        let counts = TodoCounts(total: total, done: done, open: total - done, openMessages: openMessages)
+
+        // Mirror of ballInMyCourt, reusing `counts` so we don't rebuild threads.
+        let ball: Bool
+        if pr.state == .merged || pr.state == .closed {
+            ball = false
+        } else if counts.openMessages > 0 {
+            ball = true
+        } else {
+            let mine = pr.author.login == viewerLogin
+            ball = mine && (pr.reviewState == .changesRequested || pr.ciFail > 0)
+        }
+
+        // Preview: first open non-mine message body, prefixed with the author's
+        // first name; falls back to the PR's attentionHint when there's none.
+        var preview: String? = pr.attentionHint
+        outer: for thread in ts where !isResolved(thread) {
+            for msg in thread.messages where !msg.isMine && !msg.isDone {
+                let firstName = (msg.actor.name ?? msg.actor.login).split(separator: " ").first.map(String.init) ?? msg.actor.login
+                preview = "\(firstName): \(msg.body)"
+                break outer
+            }
+        }
+
+        return PRRowMeta(counts: counts, ball: ball, preview: preview)
     }
 
     // MARK: - Private

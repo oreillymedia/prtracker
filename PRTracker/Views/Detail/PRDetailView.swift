@@ -69,6 +69,13 @@ struct PRDetailView: View {
             }
         }
         .task(id: pr.id) {
+            // Debounce: when sweeping selection quickly through the source list,
+            // each transient selection would otherwise fire 6 concurrent network
+            // requests. .task(id:) cancels this when the selection moves on, so
+            // only a settled selection (held ~300ms) actually loads. The toolbar
+            // refresh button stays immediate.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
             await loadTimeline()
         }
     }
