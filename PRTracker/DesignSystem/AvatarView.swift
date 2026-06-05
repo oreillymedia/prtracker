@@ -1,4 +1,5 @@
 import SwiftUI
+import NukeUI
 
 struct AvatarView: View {
     let user: User
@@ -7,8 +8,14 @@ struct AvatarView: View {
         ZStack {
             Circle().fill(Tokens.commented)
             if let url = user.avatarURL {
-                AsyncImage(url: url) { img in img.resizable() } placeholder: { Color.clear }
-                    .clipShape(Circle())
+                LazyImage(url: url) { state in
+                    if let image = state.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        Color.clear
+                    }
+                }
+                .clipShape(Circle())
             } else {
                 Text(String(user.login.prefix(1)).uppercased())
                     .font(.system(size: size * 0.5).weight(.semibold))
