@@ -11,6 +11,9 @@ struct TodoRing: View {
     /// When true (selected row of a focused list), render in white so the ring
     /// reads on the accent selection capsule.
     var highlighted: Bool = false
+    /// Animate the progress arc when `progress` changes. Disable where the ring
+    /// is rebuilt frequently and the sweep is distracting (e.g. the detail header).
+    var animated: Bool = true
 
     var body: some View {
         ZStack {
@@ -19,7 +22,7 @@ struct TodoRing: View {
                 .trim(from: 0, to: state == .ciFailed ? 1 : progress)
                 .stroke(arcColor, style: .init(lineWidth: size * 0.1, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.easeOut(duration: 0.35), value: progress)
+                .animation(animated ? .easeOut(duration: 0.35) : nil, value: progress)
             centerLabel
         }
         .frame(width: size, height: size)
