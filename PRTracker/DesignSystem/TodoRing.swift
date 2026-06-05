@@ -11,9 +11,9 @@ struct TodoRing: View {
     /// When true (selected row of a focused list), render in white so the ring
     /// reads on the accent selection capsule.
     var highlighted: Bool = false
-    /// Animate the progress arc when `progress` changes. Disable where the ring
-    /// is rebuilt frequently and the sweep is distracting (e.g. the detail header).
-    var animated: Bool = true
+    /// Animate the progress arc when `progress` changes. Disabled for now
+    /// everywhere (default false); flip to true to bring the sweep back.
+    var animated: Bool = false
 
     var body: some View {
         ZStack {
