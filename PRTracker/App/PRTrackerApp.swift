@@ -69,14 +69,14 @@ struct PRTrackerApp: App {
             }
         }
 
-        MenuBarExtra {
-            MenuBarContentView(coordinator: coordinator, controller: badgeController)
-                .environment(appState)
-                .modelContainer(container)
-        } label: {
-            MenuBarLabel(controller: badgeController)
-        }
-        .menuBarExtraStyle(.window)
+//        MenuBarExtra {
+//            MenuBarContentView(coordinator: coordinator, controller: badgeController)
+//                .environment(appState)
+//                .modelContainer(container)
+//        } label: {
+//            MenuBarLabel(controller: badgeController)
+//        }
+//        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView(keychain: keychain, client: client, coordinator: coordinator)
