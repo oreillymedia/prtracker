@@ -1,6 +1,15 @@
 {
-  "originHash" : "e721da7f9826abdffcb6185e886155efa2514bd6234475f1afa893e29eb258d6",
+  "originHash" : "cceabd744dd3e8ed37f9ad76d59b8ea508f5f01d5a49af4d795113d2a7227ee9",
   "pins" : [
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke",
+      "state" : {
+        "revision" : "83e19143355b02e9261edb2323b3e1e93287ebb9",
+        "version" : "12.9.0"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
