@@ -112,12 +112,21 @@ private struct SourceList: View {
     let meta: [String: PRRowMeta]
     let viewerLogin: String
 
+    /// `visible` (filter-matched + sorted) narrowed by the live title search.
+    /// Applying search here — in the isolated child — keeps it off the parent's
+    /// `meta`-rebuild path, so typing doesn't recompute per-PR thread data.
+    private var shown: [PullRequest] {
+        let q = appState.searchText
+        guard !q.isEmpty else { return visible }
+        return visible.filter { $0.title.localizedCaseInsensitiveContains(q) }
+    }
+
     var body: some View {
         @Bindable var appState = appState
 
         List(selection: $appState.selectedPRID) {
-            if visible.isEmpty {
-                Text("Nothing in this filter.")
+            if shown.isEmpty {
+                Text(appState.searchText.isEmpty ? "Nothing in this filter." : "No matches.")
                     .font(.system(size: 12.5).italic())
                     .foregroundStyle(Tokens.textFaint)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -125,7 +134,7 @@ private struct SourceList: View {
                     .listRowSeparator(.hidden)
                     .selectionDisabled()
             } else {
-                ForEach(visible) { pr in
+                ForEach(shown) { pr in
                     MailRowView(pr: pr, meta: meta[pr.id], isSelected: appState.selectedPRID == pr.id, viewerLogin: viewerLogin)
                         .tag(pr.id)
                         .listRowSeparator(.hidden)
@@ -140,6 +149,11 @@ private struct SourceList: View {
             }
         }
         .listStyle(.sidebar)
+        .searchable(text: $appState.searchText, placement: .sidebar, prompt: "Search titles")
+        .onChange(of: appState.searchText) { _, _ in
+            // Keep selection valid when search hides the selected row.
+            appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: shown.map(\.id))
+        }
         .onAppear {
             // Clear a restored selection that no longer maps to a known PR
             // (the row was deleted between runs).

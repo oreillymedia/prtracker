@@ -12,12 +12,11 @@ struct MailSourceColumn: View {
         let repo = repos.first(where: \.isActive)
         let viewer = viewerStates.first?.viewer
         VStack(spacing: 0) {
-            RepoSelectorCard(repoSlug: repo?.id ?? "—", onTap: onOpenSettings)
-                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 8)
-
             MailListView(syncActor: syncActor)
 
             Divider()
+            RepoSelectorCard(repoSlug: repo?.id ?? "—", onTap: onOpenSettings)
+                .padding(.horizontal, 12).padding(.vertical, 8)
             AccountFooter(viewer: viewer, onOpenSettings: onOpenSettings)
         }
     }

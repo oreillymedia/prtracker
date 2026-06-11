@@ -15,7 +15,12 @@ struct MailRowView: View {
     /// (`backgroundProminence` isn't updated for macOS `.sidebar` lists, so we
     /// derive the state from the selection + window active state instead.)
     @Environment(\.controlActiveState) private var controlActiveState
-    private var highlighted: Bool { isSelected && controlActiveState != .inactive }
+    /// True while the user is interacting with the `.searchable` field. When the
+    /// search field is the responder the list draws its selection in the gray
+    /// *unemphasized* state (not the blue accent), so white row text would be
+    /// unreadable — drop back to the standard dark text in that case.
+    @Environment(\.isSearching) private var isSearching
+    private var highlighted: Bool { isSelected && controlActiveState != .inactive && !isSearching }
     private var primaryColor: Color { highlighted ? .white : Tokens.text }
     private var secondaryColor: Color { highlighted ? Color.white.opacity(0.85) : Tokens.textMuted }
     private var faintColor: Color { highlighted ? Color.white.opacity(0.7) : Tokens.textFaint }

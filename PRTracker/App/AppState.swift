@@ -12,6 +12,8 @@ final class AppState {
     var selectedPRID: String? {
         didSet { defaults.set(selectedPRID, forKey: Keys.selectedPRID) }
     }
+    /// Live sidebar search text. Ephemeral — intentionally not persisted across launches.
+    var searchText: String = ""
     var rateLimitRemaining: Int? = nil
     var rateLimitResetAt: Date? = nil
 
