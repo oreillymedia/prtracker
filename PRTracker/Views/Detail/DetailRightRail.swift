@@ -8,6 +8,11 @@ struct DetailRightRail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                section("Last updated") {
+                    Text(RelativeTimeFormatter.short(pr.updatedAt))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
                 section("Pull Request") {
                     Text("#\(pr.number)")
                         .font(.system(size: 12).monospacedDigit())
@@ -46,11 +51,6 @@ struct DetailRightRail: View {
                 }
                 section("Opened") {
                     Text(RelativeTimeFormatter.short(pr.openedAt))
-                        .font(.system(size: 12))
-                        .foregroundStyle(Tokens.textMuted)
-                }
-                section("Updated") {
-                    Text(RelativeTimeFormatter.short(pr.updatedAt))
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.textMuted)
                 }
