@@ -54,46 +54,54 @@ final class SyncCoordinator {
         defer { isSyncing = false }
 
         let ctx = ModelContext(modelContainer)
-        guard let active = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isActive == true })))?.first else {
-            return
+        let enabled = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
+        if enabled.isEmpty { return }
+
+        var anySucceeded = false
+        for repo in enabled {
+            let ref = RepoRef(owner: repo.owner, name: repo.name)
+            do {
+                try await refreshRepo(ref: ref, repoID: repo.id)
+                anySucceeded = true
+            } catch let e as GitHubError {
+                lastSyncError = e
+            } catch {
+                lastSyncError = .network(message: error.localizedDescription)
+            }
         }
-        let ref = RepoRef(owner: active.owner, name: active.name)
-        let repoID = active.id
+        if anySucceeded { lastSyncAt = .now }
+    }
 
-        do {
-            async let openPRs = client.listOpenPRs(repo: ref)
-            async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
-            async let notifs = client.participatingNotifications()
-            let (open, closed, _) = try await (openPRs, recent, notifs)
-            let allPRs = open + closed
-            try await syncActor.upsertPullRequests(allPRs, inRepoID: repoID)
+    /// Sync a single repo: fetch its open + recently-merged PRs, upsert them,
+    /// refresh CI checks for open PRs, then run notifications for the repo. A
+    /// thrown error aborts only this repo; `refresh()` continues to the next.
+    private func refreshRepo(ref: RepoRef, repoID: String) async throws {
+        async let openPRs = client.listOpenPRs(repo: ref)
+        async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
+        let (open, closed) = try await (openPRs, recent)
+        let allPRs = open + closed
+        try await syncActor.upsertPullRequests(allPRs, inRepoID: repoID)
 
-            await withTaskGroup(of: Void.self) { group in
-                let semaphore = AsyncSemaphore(value: 5)
-                let actorRef = syncActor
-                let clientRef = client
-                for pr in open {
-                    group.addTask {
-                        await semaphore.wait()
-                        defer { Task { await semaphore.signal() } }
-                        do {
-                            let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha)
-                            try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
-                        } catch is GitHubError {
-                            // ignore per-PR failures; toolbar surfaces aggregate errors only
-                        } catch { }
-                    }
+        await withTaskGroup(of: Void.self) { group in
+            let semaphore = AsyncSemaphore(value: 5)
+            let actorRef = syncActor
+            let clientRef = client
+            for pr in open {
+                group.addTask {
+                    await semaphore.wait()
+                    defer { Task { await semaphore.signal() } }
+                    do {
+                        let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha)
+                        try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
+                    } catch is GitHubError {
+                        // ignore per-PR failures; toolbar surfaces aggregate errors only
+                    } catch { }
                 }
             }
+        }
 
-            lastSyncAt = .now
-            if let d = notificationDispatcher {
-                await d.process(repoID: repoID)
-            }
-        } catch let e as GitHubError {
-            lastSyncError = e
-        } catch {
-            lastSyncError = .network(message: error.localizedDescription)
+        if let d = notificationDispatcher {
+            await d.process(repoID: repoID)
         }
     }
 

@@ -6,12 +6,14 @@ import UserNotifications
 struct SettingsView: View {
     @Environment(\.modelContext) private var ctx
     @Query private var viewerStates: [ViewerState]
+    @Query(sort: [SortDescriptor(\Repo.id)]) private var repos: [Repo]
 
     let keychain: Keychain
     let client: GitHubClient
     let coordinator: SyncCoordinator
 
     @State private var newRepo: String = ""
+    @State private var repoPendingDeletion: Repo?
     @State private var authDeniedHintVisible: Bool = false
 
     var body: some View {
@@ -19,9 +21,9 @@ struct SettingsView: View {
             generalTab.tabItem { SwiftUI.Label("General", systemImage: "gearshape") }
             notificationsTab.tabItem { SwiftUI.Label("Notifications", systemImage: "bell") }
             accountTab.tabItem { SwiftUI.Label("Account", systemImage: "person.circle") }
-            repoTab.tabItem    { SwiftUI.Label("Repository", systemImage: "folder") }
+            repoTab.tabItem    { SwiftUI.Label("Repos", systemImage: "folder") }
         }
-        .frame(width: 480, height: 280).padding(20)
+        .frame(width: 480, height: 360).padding(20)
     }
 
     private var vs: ViewerState {
@@ -91,14 +93,64 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var repoTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Active repository: \(vs.activeRepoID ?? "—")")
+        VStack(alignment: .leading, spacing: 12) {
+            if repos.isEmpty {
+                Text("No repositories yet. Add one below.")
+                    .microText().foregroundStyle(Tokens.textMuted)
+            } else {
+                List {
+                    ForEach(repos) { repo in
+                        HStack(spacing: 8) {
+                            Toggle("", isOn: Binding(
+                                get: { repo.isEnabled },
+                                set: { newValue in
+                                    repo.isEnabled = newValue
+                                    try? ctx.save()
+                                    if newValue { Task { await coordinator.refresh() } }
+                                }))
+                                .labelsHidden()
+                            Text(repo.id)
+                                .font(.system(size: 12))
+                                .foregroundStyle(repo.isEnabled ? Tokens.text : Tokens.textMuted)
+                            Spacer()
+                            Button {
+                                repoPendingDeletion = repo
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Tokens.changes)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete repository and all its stored data")
+                        }
+                    }
+                }
+                .listStyle(.inset)
+                .frame(maxHeight: .infinity)
+            }
+
             HStack {
                 TextField("owner/name", text: $newRepo).textFieldStyle(.roundedBorder)
-                Button("Switch") { switchRepo() }.disabled(!newRepo.contains("/"))
+                Button("Add") { addRepo() }.disabled(!canAddRepo)
             }
-            Spacer()
         }
+        .confirmationDialog(
+            "Delete \(repoPendingDeletion?.id ?? "")?",
+            isPresented: Binding(get: { repoPendingDeletion != nil }, set: { if !$0 { repoPendingDeletion = nil } }),
+            presenting: repoPendingDeletion) { repo in
+            Button("Delete", role: .destructive) { deleteRepo(repo) }
+            Button("Cancel", role: .cancel) { repoPendingDeletion = nil }
+        } message: { _ in
+            Text("This removes the repository and all of its stored pull requests. This can't be undone.")
+        }
+    }
+
+    /// Add is allowed only for a well-formed "owner/name" that isn't already tracked.
+    private var canAddRepo: Bool {
+        let parts = newRepo.split(separator: "/")
+        guard parts.count == 2 else { return false }
+        let id = "\(parts[0])/\(parts[1])"
+        return !repos.contains { $0.id == id }
     }
 
     @ViewBuilder private var notificationsTab: some View {
@@ -171,23 +223,21 @@ struct SettingsView: View {
         authDeniedHintVisible = (vs.notificationLevel != .none && status == .denied)
     }
 
-    private func switchRepo() {
+    private func addRepo() {
         let parts = newRepo.split(separator: "/")
         guard parts.count == 2 else { return }
         let owner = String(parts[0]); let name = String(parts[1])
         let id = "\(owner)/\(name)"
-        let existing = (try? ctx.fetch(FetchDescriptor<Repo>())) ?? []
-        for r in existing { r.isActive = false }
-        if let already = existing.first(where: { $0.id == id }) {
-            already.isActive = true
-            vs.activeRepoID = already.id
-        } else {
-            let r = Repo(owner: owner, name: name, isActive: true)
-            ctx.insert(r)
-            vs.activeRepoID = r.id
-        }
+        guard !repos.contains(where: { $0.id == id }) else { return }
+        ctx.insert(Repo(owner: owner, name: name))
         try? ctx.save()
         newRepo = ""
         Task { await coordinator.refresh() }
+    }
+
+    private func deleteRepo(_ repo: Repo) {
+        ctx.delete(repo)
+        try? ctx.save()
+        repoPendingDeletion = nil
     }
 }

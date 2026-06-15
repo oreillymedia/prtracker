@@ -23,7 +23,7 @@ struct PRTrackerApp: App {
             ReviewComment.self, NotificationLog.self,
         ])
         let cfg = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        let c = try! ModelContainer(for: schema, configurations: [cfg])
+        let c = Self.makeContainer(schema: schema, configuration: cfg)
         let bc = BadgeController()
         let bootCtx = ModelContext(c)
         if let vs = (try? bootCtx.fetch(FetchDescriptor<ViewerState>()))?.first {
@@ -51,6 +51,24 @@ struct PRTrackerApp: App {
         self.dispatcher = d
         self.coordinator.notificationDispatcher = d
         self.coordinator.badgeController = self.badgeController
+    }
+
+    /// Open the on-disk store, recovering from an unmigratable schema. If the
+    /// container can't be created (e.g. an older store whose schema SwiftData
+    /// can't lightweight-migrate), delete the store files and start fresh —
+    /// acceptable here since all data is re-fetched from GitHub on next sync.
+    private static func makeContainer(schema: Schema, configuration cfg: ModelConfiguration) -> ModelContainer {
+        do {
+            return try ModelContainer(for: schema, configurations: [cfg])
+        } catch {
+            let fm = FileManager.default
+            for suffix in ["", "-wal", "-shm"] {
+                let url = cfg.url.deletingPathExtension().appendingPathExtension("store\(suffix)")
+                try? fm.removeItem(at: url)
+            }
+            try? fm.removeItem(at: cfg.url)
+            return try! ModelContainer(for: schema, configurations: [cfg])
+        }
     }
 
     var body: some Scene {

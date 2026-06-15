@@ -10,7 +10,16 @@ struct MailEmptyDetailView: View {
     @Query private var repos: [Repo]
 
     private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
-    private var activeRepoName: String? { repos.first(where: \.isActive)?.name }
+
+    /// PRs from enabled repos only — mirrors the sidebar.
+    private var enabledPRs: [PullRequest] { prs.filter { $0.repo.isEnabled } }
+
+    /// When exactly one repo is enabled, name it in the prompt; otherwise the
+    /// queue spans several repos, so stay generic.
+    private var promptRepoName: String? {
+        let enabled = repos.filter(\.isEnabled)
+        return enabled.count == 1 ? enabled.first?.name : nil
+    }
 
     private struct Summary { var awaitingMe = 0; var open = 0; var merged = 0 }
 
@@ -19,7 +28,7 @@ struct MailEmptyDetailView: View {
     /// is empty, so the per-PR `rowMeta` build is off the selection hot path.
     private var summary: Summary {
         var s = Summary()
-        for pr in prs {
+        for pr in enabledPRs {
             if pr.state == .open || pr.state == .draft { s.open += 1 }
             if pr.state == .merged { s.merged += 1 }
             if TodoHelpers.rowMeta(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt).ball { s.awaitingMe += 1 }
@@ -43,7 +52,7 @@ struct MailEmptyDetailView: View {
                     Text("No Pull Request Selected")
                         .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(Tokens.text)
-                    Text(activeRepoName.map { "Select a pull request from \($0) to see its details." }
+                    Text(promptRepoName.map { "Select a pull request from \($0) to see its details." }
                          ?? "Select a pull request from the sidebar to see its details.")
                         .font(.system(size: 13))
                         .foregroundStyle(Tokens.textMuted)
@@ -51,7 +60,7 @@ struct MailEmptyDetailView: View {
                 }
             }
 
-            if !prs.isEmpty {
+            if !enabledPRs.isEmpty {
                 HStack(spacing: 12) {
                     stat("Awaiting you", count: s.awaitingMe, color: Lane.attention.color)
                     stat("Open", count: s.open, color: Lane.review.color)

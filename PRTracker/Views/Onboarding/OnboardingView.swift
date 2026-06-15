@@ -92,16 +92,11 @@ struct OnboardingView: View {
         let owner = String(parts[0]); let name = String(parts[1])
         let id = "\(owner)/\(name)"
         let existing = (try? ctx.fetch(FetchDescriptor<Repo>())) ?? []
-        for r in existing { r.isActive = false }
-        let repo: Repo
         if let already = existing.first(where: { $0.id == id }) {
-            already.isActive = true; repo = already
+            already.isEnabled = true
         } else {
-            repo = Repo(owner: owner, name: name, isActive: true)
-            ctx.insert(repo)
+            ctx.insert(Repo(owner: owner, name: name))
         }
-        let vs = (try? ctx.fetch(FetchDescriptor<ViewerState>()))?.first
-        vs?.activeRepoID = repo.id
         try? ctx.save()
         onReady()
     }

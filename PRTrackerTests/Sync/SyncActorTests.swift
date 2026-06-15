@@ -7,7 +7,7 @@ import SwiftData
     private func setup() throws -> (ModelContainer, Repo) {
         let container = try TestContainer.make()
         let ctx = ModelContext(container)
-        let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
+        let repo = Repo(owner: "oreilly", name: "spark-ios")
         ctx.insert(repo)
         try ctx.save()
         return (container, repo)

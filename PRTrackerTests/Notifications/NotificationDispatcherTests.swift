@@ -8,11 +8,11 @@ import UserNotifications
     private func setup(level: NotificationLevel = .personal, viewerLogin: String = "alex") throws -> (ModelContainer, Repo, ViewerState) {
         let container = try TestContainer.make()
         let ctx = ModelContext(container)
-        let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
+        let repo = Repo(owner: "oreilly", name: "spark-ios")
         ctx.insert(repo)
         let viewer = User(login: viewerLogin)
         ctx.insert(viewer)
-        let vs = ViewerState(viewer: viewer, activeRepoID: repo.id)
+        let vs = ViewerState(viewer: viewer)
         vs.notificationLevel = level
         ctx.insert(vs)
         try ctx.save()

@@ -17,13 +17,17 @@ struct MailListView: View {
         // intentionally does NOT read `selectedPRID` — only `prs` and
         // `activeFilter` — so changing selection re-renders `SourceList` (cheap)
         // without rebuilding `meta` for every PR. See rowMetaByID() / SourceList.
-        let meta = rowMetaByID()
-        let counts = filterCounts(meta: meta)
-        let visible = visiblePRs(filter: appState.activeFilter, meta: meta)
+        // Only PRs from enabled repos participate in the UI. Disabled repos keep
+        // their stored data but contribute nothing here; toggling a repo off
+        // reactively drops its rows.
+        let enabledPRs = prs.filter { $0.repo.isEnabled }
+        let meta = rowMetaByID(enabledPRs)
+        let counts = filterCounts(enabledPRs, meta: meta)
+        let visible = visiblePRs(enabledPRs, filter: appState.activeFilter, meta: meta)
 
-        SourceList(prs: prs, visible: visible, meta: meta, viewerLogin: viewerLogin)
+        SourceList(prs: enabledPRs, visible: visible, meta: meta, viewerLogin: viewerLogin)
             .onChange(of: appState.activeFilter) { _, newFilter in
-                let ids = visiblePRs(filter: newFilter, meta: meta).map(\.id)
+                let ids = visiblePRs(enabledPRs, filter: newFilter, meta: meta).map(\.id)
                 appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
             }
             .toolbar {
@@ -44,7 +48,7 @@ struct MailListView: View {
     /// Precomputed per-PR thread data. Building a PR's threads from its timeline +
     /// review comments is relatively expensive; we compute it once per render and
     /// look it up by PR id for filtering, sorting, counts, AND row rendering.
-    private func rowMetaByID() -> [String: PRRowMeta] {
+    private func rowMetaByID(_ prs: [PullRequest]) -> [String: PRRowMeta] {
         var out: [String: PRRowMeta] = [:]
         out.reserveCapacity(prs.count)
         for pr in prs {
@@ -75,7 +79,7 @@ struct MailListView: View {
         }
     }
 
-    private func visiblePRs(filter: MailFilter, meta: [String: PRRowMeta]) -> [PullRequest] {
+    private func visiblePRs(_ prs: [PullRequest], filter: MailFilter, meta: [String: PRRowMeta]) -> [PullRequest] {
         prs.filter { matches($0, filter: filter, meta: meta) }
            .sorted { a, b in
                let aw = (meta[a.id]?.ball ?? false) ? 0 : 1
@@ -85,7 +89,7 @@ struct MailListView: View {
            }
     }
 
-    private func filterCounts(meta: [String: PRRowMeta]) -> [MailFilter: Int] {
+    private func filterCounts(_ prs: [PullRequest], meta: [String: PRRowMeta]) -> [MailFilter: Int] {
         var c: [MailFilter: Int] = [:]
         for filter in MailFilter.allCases {
             c[filter] = prs.filter { matches($0, filter: filter, meta: meta) }.count

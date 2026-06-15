@@ -6,7 +6,7 @@ import SwiftData
     @Test func canCreateInMemoryContainer() throws {
         let container = try TestContainer.make()
         let context = ModelContext(container)
-        let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
+        let repo = Repo(owner: "oreilly", name: "spark-ios")
         context.insert(repo)
         try context.save()
         #expect(repo.id == "oreilly/spark-ios")

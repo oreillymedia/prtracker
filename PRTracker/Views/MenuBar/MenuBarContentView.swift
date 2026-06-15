@@ -13,13 +13,14 @@ struct MenuBarContentView: View {
 
     var body: some View {
         let viewer = viewerStates.first?.viewer
-        let repo = repos.first(where: \.isActive)
+        let enabledRepos = repos.filter(\.isEnabled)
+        let repoTitle = enabledRepos.count == 1 ? enabledRepos.first?.id ?? "—" : "\(enabledRepos.count) repos"
         let buckets = grouped(viewerLogin: viewer?.login ?? "")
         let sectionOrder: [PRTracker.Section] = [.attention, .review, .mine, .mentions, .involved, .recent]
 
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(repo?.id ?? "—").font(.system(size: 12).weight(.bold))
+                Text(repoTitle).font(.system(size: 12).weight(.bold))
                 Spacer()
                 Text(coordinator.lastSyncAt.map { "Updated \(RelativeTimeFormatter.short($0))" } ?? "—")
                     .microText().foregroundStyle(Tokens.textMuted)

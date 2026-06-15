@@ -8,7 +8,7 @@ import SwiftData
         let container = try TestContainer.make()
         let ctx = ModelContext(container)
         let user = User(login: "alex.chen", name: nil, avatarURL: nil)
-        let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
+        let repo = Repo(owner: "oreilly", name: "spark-ios")
         ctx.insert(user); ctx.insert(repo)
         let t = Date(timeIntervalSince1970: 1_700_000_000)
         let pr = PullRequest(id: "PR_5107", number: 5107, title: "T", state: .open,

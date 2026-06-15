@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
     @Query private var viewerStates: [ViewerState]
+    @Query private var repos: [Repo]
 
     @State private var lastActiveTriggerAt: Date = .distantPast
     @State private var didRunFirstLaunchAuth: Bool = false
@@ -44,7 +45,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && (viewerStates.first?.activeRepoID != nil)
+        let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && !repos.isEmpty
         Group {
             if signedIn {
                 MainView(coordinator: coordinator, onOpenSettings: { openSettings() })
@@ -83,10 +84,10 @@ struct MainView: View {
         let viewer = viewerStates.first?.viewer
 
         NavigationSplitView {
-            MailSourceColumn(syncActor: coordinator.syncActorForView, onOpenSettings: onOpenSettings)
+            MailSourceColumn(coordinator: coordinator, onOpenSettings: onOpenSettings)
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
-            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
+            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID && $0.repo.isEnabled }) {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
             } else {
                 MailEmptyDetailView()

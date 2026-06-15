@@ -22,7 +22,7 @@ import SwiftData
             authorUser = User(login: author, name: nil, avatarURL: nil)
             ctx.insert(authorUser)
         }
-        let repo = Repo(owner: "oreilly", name: "spark-ios", isActive: true)
+        let repo = Repo(owner: "oreilly", name: "spark-ios")
         ctx.insert(repo)
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let pr = PullRequest(id: "PR_1", number: 1, title: "T", state: .open,

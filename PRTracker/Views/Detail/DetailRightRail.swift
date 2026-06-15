@@ -18,6 +18,11 @@ struct DetailRightRail: View {
                         .font(.system(size: 12).monospacedDigit())
                         .foregroundStyle(Tokens.textMuted)
                 }
+                section("Repository") {
+                    Text(pr.repo.id)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
                 section("Status") {
                     row("Review", pill: pr.reviewState?.rawValue ?? "—", tint: reviewTint)
                     row("CI", pill: ciSummary, tint: ciTint)

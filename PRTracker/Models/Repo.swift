@@ -7,15 +7,15 @@ final class Repo {
     var owner: String
     var name: String
     var lastFetchedAt: Date?
-    var isActive: Bool
+    var isEnabled: Bool
 
     @Relationship(deleteRule: .cascade, inverse: \PullRequest.repo)
     var pullRequests: [PullRequest] = []
 
-    init(owner: String, name: String, isActive: Bool = false) {
+    init(owner: String, name: String, isEnabled: Bool = true) {
         self.id = "\(owner)/\(name)"
         self.owner = owner
         self.name = name
-        self.isActive = isActive
+        self.isEnabled = isEnabled
     }
 }
