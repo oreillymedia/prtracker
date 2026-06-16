@@ -3,7 +3,10 @@ import SwiftData
 
 struct MailListView: View {
     @Environment(AppState.self) private var appState
-    @Query(sort: [SortDescriptor(\PullRequest.updatedAt, order: .reverse)])
+    // Enabled-repo PRs only, filtered at the fetch. Excludes disabled and
+    // cascade-deleted repos' PRs without dereferencing `repo` in the body.
+    @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled },
+           sort: [SortDescriptor(\PullRequest.updatedAt, order: .reverse)])
     private var prs: [PullRequest]
     @Query private var viewerStates: [ViewerState]
 
@@ -17,17 +20,15 @@ struct MailListView: View {
         // intentionally does NOT read `selectedPRID` — only `prs` and
         // `activeFilter` — so changing selection re-renders `SourceList` (cheap)
         // without rebuilding `meta` for every PR. See rowMetaByID() / SourceList.
-        // Only PRs from enabled repos participate in the UI. Disabled repos keep
-        // their stored data but contribute nothing here; toggling a repo off
-        // reactively drops its rows.
-        let enabledPRs = prs.filter { $0.repo.isEnabled }
-        let meta = rowMetaByID(enabledPRs)
-        let counts = filterCounts(enabledPRs, meta: meta)
-        let visible = visiblePRs(enabledPRs, filter: appState.activeFilter, meta: meta)
+        // `prs` is already scoped to enabled repos by the @Query predicate, so
+        // disabled / cascade-deleted repos' PRs never reach the body.
+        let meta = rowMetaByID(prs)
+        let counts = filterCounts(prs, meta: meta)
+        let visible = visiblePRs(prs, filter: appState.activeFilter, meta: meta)
 
-        SourceList(prs: enabledPRs, visible: visible, meta: meta, viewerLogin: viewerLogin)
+        SourceList(prs: prs, visible: visible, meta: meta, viewerLogin: viewerLogin)
             .onChange(of: appState.activeFilter) { _, newFilter in
-                let ids = visiblePRs(enabledPRs, filter: newFilter, meta: meta).map(\.id)
+                let ids = visiblePRs(prs, filter: newFilter, meta: meta).map(\.id)
                 appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
             }
             .toolbar {

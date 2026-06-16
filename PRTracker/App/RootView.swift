@@ -76,7 +76,10 @@ struct RootView: View {
 struct MainView: View {
     @Environment(AppState.self) private var appState
     @Query private var viewerStates: [ViewerState]
-    @Query private var prs: [PullRequest]
+    // Enabled-repo PRs only. Filtering at the fetch excludes a repo's PRs the
+    // moment it's disabled or cascade-deleted, so the detail lookup never
+    // dereferences a dangling `repo` relationship on a deleted PR.
+    @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled }) private var prs: [PullRequest]
 
     let coordinator: SyncCoordinator
     var onOpenSettings: () -> Void
@@ -88,7 +91,7 @@ struct MainView: View {
             MailSourceColumn(coordinator: coordinator, onOpenSettings: onOpenSettings)
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
-            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID && $0.repo.isEnabled }) {
+            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
                 PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
             } else {
                 MailEmptyDetailView()

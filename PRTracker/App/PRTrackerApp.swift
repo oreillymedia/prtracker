@@ -53,21 +53,36 @@ struct PRTrackerApp: App {
         self.coordinator.badgeController = self.badgeController
     }
 
-    /// Open the on-disk store, recovering from an unmigratable schema. If the
-    /// container can't be created (e.g. an older store whose schema SwiftData
-    /// can't lightweight-migrate), delete the store files and start fresh —
-    /// acceptable here since all data is re-fetched from GitHub on next sync.
+    /// Open the on-disk store, recovering from an unmigratable schema as a last
+    /// resort. Destroying the store is only acceptable for a genuinely
+    /// incompatible store (we don't handle migrations yet) — NOT for a transient
+    /// failure (file lock, sandbox hiccup, disk pressure). So we retry once
+    /// before wiping: a deterministic schema mismatch fails again and triggers
+    /// the rebuild, while a transient error usually clears on the retry and the
+    /// user's data is preserved.
     private static func makeContainer(schema: Schema, configuration cfg: ModelConfiguration) -> ModelContainer {
         do {
             return try ModelContainer(for: schema, configurations: [cfg])
         } catch {
-            let fm = FileManager.default
-            for suffix in ["", "-wal", "-shm"] {
-                let url = cfg.url.deletingPathExtension().appendingPathExtension("store\(suffix)")
-                try? fm.removeItem(at: url)
+            // Second attempt absorbs transient open failures without data loss.
+            if let container = try? ModelContainer(for: schema, configurations: [cfg]) {
+                return container
             }
-            try? fm.removeItem(at: cfg.url)
+            // Still failing — treat the store as incompatible and rebuild it.
+            deleteStore(at: cfg.url)
             return try! ModelContainer(for: schema, configurations: [cfg])
+        }
+    }
+
+    /// Remove a SQLite store and its sidecar files. Sibling names are derived
+    /// from the store's actual filename (not an assumed extension), so a custom
+    /// ModelConfiguration URL is handled correctly.
+    private static func deleteStore(at url: URL) {
+        let fm = FileManager.default
+        let dir = url.deletingLastPathComponent()
+        let base = url.lastPathComponent
+        for name in [base, base + "-wal", base + "-shm"] {
+            try? fm.removeItem(at: dir.appendingPathComponent(name))
         }
     }
 

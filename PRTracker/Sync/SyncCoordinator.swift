@@ -60,8 +60,14 @@ final class SyncCoordinator {
         var anySucceeded = false
         for repo in enabled {
             let ref = RepoRef(owner: repo.owner, name: repo.name)
+            // A repo's very first successful sync establishes a silent baseline
+            // instead of posting — its whole current state is pre-existing, not
+            // new activity. `lastFetchedAt == nil` marks a never-synced repo
+            // (set by upsertPullRequests on success), covering newly-added and
+            // freshly-onboarded repos without a per-call flag.
+            let isFirstSync = repo.lastFetchedAt == nil
             do {
-                try await refreshRepo(ref: ref, repoID: repo.id)
+                try await refreshRepo(ref: ref, repoID: repo.id, isFirstSync: isFirstSync)
                 anySucceeded = true
             } catch let e as GitHubError {
                 lastSyncError = e
@@ -75,7 +81,7 @@ final class SyncCoordinator {
     /// Sync a single repo: fetch its open + recently-merged PRs, upsert them,
     /// refresh CI checks for open PRs, then run notifications for the repo. A
     /// thrown error aborts only this repo; `refresh()` continues to the next.
-    private func refreshRepo(ref: RepoRef, repoID: String) async throws {
+    private func refreshRepo(ref: RepoRef, repoID: String, isFirstSync: Bool) async throws {
         async let openPRs = client.listOpenPRs(repo: ref)
         async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
         let (open, closed) = try await (openPRs, recent)
@@ -101,7 +107,13 @@ final class SyncCoordinator {
         }
 
         if let d = notificationDispatcher {
-            await d.process(repoID: repoID)
+            if isFirstSync {
+                // Silently record everything currently present so only later
+                // activity notifies; avoids a backlog flood on a new repo.
+                await d.backfillSilentBaseline(repoID: repoID)
+            } else {
+                await d.process(repoID: repoID)
+            }
         }
     }
 

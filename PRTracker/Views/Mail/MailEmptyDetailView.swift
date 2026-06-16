@@ -5,14 +5,13 @@ import SwiftData
 /// to pick one, it surfaces a small at-a-glance summary of the current queue so
 /// the empty state still tells you whether anything needs attention.
 struct MailEmptyDetailView: View {
-    @Query private var prs: [PullRequest]
+    // Enabled-repo PRs only, scoped at the fetch (mirrors the sidebar and avoids
+    // dereferencing `repo` on a cascade-deleted PR).
+    @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled }) private var enabledPRs: [PullRequest]
     @Query private var viewerStates: [ViewerState]
     @Query private var repos: [Repo]
 
     private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
-
-    /// PRs from enabled repos only — mirrors the sidebar.
-    private var enabledPRs: [PullRequest] { prs.filter { $0.repo.isEnabled } }
 
     /// When exactly one repo is enabled, name it in the prompt; otherwise the
     /// queue spans several repos, so stay generic.
