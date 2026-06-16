@@ -9,11 +9,11 @@ import UserNotifications
         let container = try TestContainer.make()
         let ctx = ModelContext(container)
         let repo = Repo(owner: "oreilly", name: "spark-ios")
+        repo.notificationLevel = level
         ctx.insert(repo)
         let viewer = User(login: viewerLogin)
         ctx.insert(viewer)
         let vs = ViewerState(viewer: viewer)
-        vs.notificationLevel = level
         ctx.insert(vs)
         try ctx.save()
         return (container, repo, vs)

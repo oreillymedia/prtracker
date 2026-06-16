@@ -3,27 +3,35 @@ import SwiftData
 import ServiceManagement
 import UserNotifications
 
+/// Settings tab identity, persisted so callers (e.g. the sidebar's "Manage
+/// repositories…") can deep-link the window to a specific tab.
+enum SettingsTab: String {
+    case general, repositories, notifications, account
+    static let storageKey = "settingsSelectedTab"
+}
+
 struct SettingsView: View {
     @Environment(\.modelContext) private var ctx
     @Query private var viewerStates: [ViewerState]
-    @Query(sort: [SortDescriptor(\Repo.id)]) private var repos: [Repo]
+    @AppStorage(SettingsTab.storageKey) private var selectedTab: SettingsTab = .general
 
     let keychain: Keychain
     let client: GitHubClient
     let coordinator: SyncCoordinator
 
-    @State private var newRepo: String = ""
-    @State private var repoPendingDeletion: Repo?
-    @State private var authDeniedHintVisible: Bool = false
-
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             generalTab.tabItem { SwiftUI.Label("General", systemImage: "gearshape") }
+                .tag(SettingsTab.general)
+            RepositoriesSettingsView(coordinator: coordinator)
+                .tabItem { SwiftUI.Label("Repositories", systemImage: "folder") }
+                .tag(SettingsTab.repositories)
             notificationsTab.tabItem { SwiftUI.Label("Notifications", systemImage: "bell") }
+                .tag(SettingsTab.notifications)
             accountTab.tabItem { SwiftUI.Label("Account", systemImage: "person.circle") }
-            repoTab.tabItem    { SwiftUI.Label("Repos", systemImage: "folder") }
+                .tag(SettingsTab.account)
         }
-        .frame(width: 480, height: 360).padding(20)
+        .frame(width: 580, height: 400).padding(20)
     }
 
     private var vs: ViewerState {
@@ -92,94 +100,12 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder private var repoTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if repos.isEmpty {
-                Text("No repositories yet. Add one below.")
-                    .microText().foregroundStyle(Tokens.textMuted)
-            } else {
-                List {
-                    ForEach(repos) { repo in
-                        HStack(spacing: 8) {
-                            Toggle("", isOn: Binding(
-                                get: { repo.isEnabled },
-                                set: { newValue in
-                                    repo.isEnabled = newValue
-                                    try? ctx.save()
-                                    if newValue { Task { await coordinator.refresh() } }
-                                }))
-                                .labelsHidden()
-                            Text(repo.id)
-                                .font(.system(size: 12))
-                                .foregroundStyle(repo.isEnabled ? Tokens.text : Tokens.textMuted)
-                            Spacer()
-                            Button {
-                                repoPendingDeletion = repo
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Tokens.changes)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Delete repository and all its stored data")
-                        }
-                    }
-                }
-                .listStyle(.inset)
-                .frame(maxHeight: .infinity)
-            }
-
-            HStack {
-                TextField("owner/name", text: $newRepo).textFieldStyle(.roundedBorder)
-                Button("Add") { addRepo() }.disabled(!canAddRepo)
-            }
-        }
-        .confirmationDialog(
-            "Delete \(repoPendingDeletion?.id ?? "")?",
-            isPresented: Binding(get: { repoPendingDeletion != nil }, set: { if !$0 { repoPendingDeletion = nil } }),
-            presenting: repoPendingDeletion) { repo in
-            Button("Delete", role: .destructive) { deleteRepo(repo) }
-            Button("Cancel", role: .cancel) { repoPendingDeletion = nil }
-        } message: { _ in
-            Text("This removes the repository and all of its stored pull requests. This can't be undone.")
-        }
-    }
-
-    /// Add is allowed only for a well-formed "owner/name" that isn't already tracked.
-    private var canAddRepo: Bool {
-        let parts = newRepo.split(separator: "/")
-        guard parts.count == 2 else { return false }
-        let id = "\(parts[0])/\(parts[1])"
-        return !repos.contains { $0.id == id }
-    }
-
     @ViewBuilder private var notificationsTab: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Notify me about").font(.headline)
-            Picker("", selection: Binding(
-                get: { vs.notificationLevel },
-                set: { newValue in
-                    let previous = vs.notificationLevel
-                    vs.notificationLevel = newValue
-                    try? ctx.save()
-                    Task { await handleLevelChange(previous: previous, newValue: newValue) }
-                })) {
-                Text("Everything — all comments, reviews, CI failures, commits, and state changes").tag(NotificationLevel.everything)
-                Text("Personal — PRs you authored, replies to your comments").tag(NotificationLevel.personal)
-                Text("None — no notifications").tag(NotificationLevel.none)
-            }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
-
-            if authDeniedHintVisible {
-                Text("macOS notifications are disabled for PR Tracker. Enable in System Settings → Notifications → PR Tracker.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Tokens.textFaint)
-            }
-
-            Divider().padding(.vertical, 4)
-
             Text("Badging").font(.headline)
+            Text("Notification preferences are configured per repository in the Repositories tab.")
+                .font(.system(size: 11))
+                .foregroundStyle(Tokens.textFaint)
             Toggle("Show indicator on menu-bar icon", isOn: Binding(
                 get: { vs.menuBarBadgeEnabled },
                 set: { newValue in
@@ -199,45 +125,5 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .task { await refreshAuthHint() }
-    }
-
-    private func handleLevelChange(previous: NotificationLevel, newValue: NotificationLevel) async {
-        if newValue == .none {
-            authDeniedHintVisible = false
-            return
-        }
-        let auth = NotificationAuthorization()
-        var status = await auth.currentStatus()
-        if status == .notDetermined {
-            status = await auth.requestAuthorization()
-        }
-        if status == .authorized && previous == .none {
-            await coordinator.notificationDispatcher?.backfillSilentBaseline()
-        }
-        authDeniedHintVisible = (status == .denied)
-    }
-
-    private func refreshAuthHint() async {
-        let status = await NotificationAuthorization().currentStatus()
-        authDeniedHintVisible = (vs.notificationLevel != .none && status == .denied)
-    }
-
-    private func addRepo() {
-        let parts = newRepo.split(separator: "/")
-        guard parts.count == 2 else { return }
-        let owner = String(parts[0]); let name = String(parts[1])
-        let id = "\(owner)/\(name)"
-        guard !repos.contains(where: { $0.id == id }) else { return }
-        ctx.insert(Repo(owner: owner, name: name))
-        try? ctx.save()
-        newRepo = ""
-        Task { await coordinator.refresh() }
-    }
-
-    private func deleteRepo(_ repo: Repo) {
-        ctx.delete(repo)
-        try? ctx.save()
-        repoPendingDeletion = nil
     }
 }

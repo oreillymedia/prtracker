@@ -28,8 +28,9 @@ struct RootView: View {
         if didRunFirstLaunchAuth { return }
         didRunFirstLaunchAuth = true
 
-        guard let vs = viewerStates.first else { return }
-        if vs.notificationLevel == .none { return }
+        guard viewerStates.first != nil else { return }
+        // Only prompt if at least one repo actually wants notifications.
+        if repos.allSatisfy({ $0.notificationLevel == .none }) { return }
 
         let auth = NotificationAuthorization()
         var status = await auth.currentStatus()

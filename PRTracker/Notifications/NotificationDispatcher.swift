@@ -18,12 +18,14 @@ final class NotificationDispatcher {
     func process(repoID: String) async {
         let ctx = ModelContext(modelContainer)
         guard let vs = (try? ctx.fetch(FetchDescriptor<ViewerState>()))?.first else { return }
-        if vs.notificationLevel == .none { return }
+        let repoTarget = repoID
+        guard let repo = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.id == repoTarget })))?.first else { return }
+        let level = repo.notificationLevel
+        if level == .none { return }
         if await auth.currentStatus() != .authorized { return }
         if await MainActor.run(body: { activity.isFrontmost() }) { return }
         guard let viewerLogin = vs.viewer?.login else { return }
 
-        let level = vs.notificationLevel
         let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>(
             predicate: #Predicate { $0.repo.id == repoID }))) ?? []
 
@@ -214,9 +216,18 @@ final class NotificationDispatcher {
         }
     }
 
-    func backfillSilentBaseline() async {
+    /// Write notification-log rows for every current candidate WITHOUT posting,
+    /// so a freshly-enabled level doesn't fire a backlog. Pass `repoID` to limit
+    /// the baseline to one repo (e.g. when a single repo's level is turned on);
+    /// `nil` baselines all repos (first-launch).
+    func backfillSilentBaseline(repoID: String? = nil) async {
         let ctx = ModelContext(modelContainer)
-        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>())) ?? []
+        let descriptor: FetchDescriptor<PullRequest> = {
+            guard let repoID else { return FetchDescriptor<PullRequest>() }
+            let target = repoID
+            return FetchDescriptor<PullRequest>(predicate: #Predicate { $0.repo.id == target })
+        }()
+        let prs = (try? ctx.fetch(descriptor)) ?? []
         for pr in prs {
             let existing = Set(pr.notificationLogs.map(\.id))
             for c in collectCandidates(pr: pr, existing: existing) {
