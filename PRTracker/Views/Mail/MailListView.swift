@@ -158,6 +158,12 @@ private struct SourceList: View {
             // Keep selection valid when search hides the selected row.
             appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: shown.map(\.id))
         }
+        .onChange(of: shown.map(\.id)) { _, ids in
+            // Keep selection valid when the visible set itself changes — e.g. a
+            // repo is disabled/deleted and its rows drop out. Without this the
+            // List(selection:) holds a PR id no longer present.
+            appState.selectedPRID = SelectionReconcile.next(previous: appState.selectedPRID, in: ids)
+        }
         .onAppear {
             // Clear a restored selection that no longer maps to a known PR
             // (the row was deleted between runs).
