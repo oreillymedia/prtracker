@@ -178,22 +178,17 @@ struct RepositoriesSettingsView: View {
 
     /// Add is allowed only for a well-formed "owner/name" that isn't already tracked.
     private var canAddRepo: Bool {
-        let parts = newRepo.split(separator: "/")
-        guard parts.count == 2 else { return false }
-        return !repos.contains { $0.id == "\(parts[0])/\(parts[1])" }
+        guard let ref = RepoRef.parse(newRepo) else { return false }
+        return !repos.contains { $0.id == ref.slug }
     }
 
     private func addRepo() {
-        let parts = newRepo.split(separator: "/")
-        guard parts.count == 2 else { return }
-        let owner = String(parts[0]); let name = String(parts[1])
-        let id = "\(owner)/\(name)"
-        guard !repos.contains(where: { $0.id == id }) else { return }
-        ctx.insert(Repo(owner: owner, name: name))
+        guard let ref = RepoRef.parse(newRepo), !repos.contains(where: { $0.id == ref.slug }) else { return }
+        ctx.insert(Repo(owner: ref.owner, name: ref.name))
         try? ctx.save()
         newRepo = ""
         showAddSheet = false
-        selectedRepoID = id
+        selectedRepoID = ref.slug
         Task { await coordinator.refresh() }
     }
 
