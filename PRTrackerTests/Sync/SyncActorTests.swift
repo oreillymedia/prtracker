@@ -116,6 +116,26 @@ import SwiftData
         #expect(pr?.lastReadAt == nil)
     }
 
+    @Test func upsertStampsLastFetchedAt() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastFetchedAt != nil)
+    }
+
+    @Test func setLastFetchedUpdatesPullRequest() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        let t = Date(timeIntervalSince1970: 1_700_000_000)
+        try await actor.setLastFetched(prID: "PR_5107", date: t)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastFetchedAt == t)
+    }
+
     @Test func upsertCIChecksStoresCheckRunID() async throws {
         let (container, repo) = try setup()
         let actor = SyncActor(modelContainer: container)

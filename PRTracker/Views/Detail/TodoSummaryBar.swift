@@ -6,6 +6,8 @@ struct TodoSummaryBar: View {
     /// "All caught up" with a "CI is failing" treatment so the author isn't
     /// told the PR is done when there's a red build to fix.
     var ciFailedForMe: Bool = false
+    /// Shows a small spinner at the bar's trailing edge while the PR is fetching.
+    var isUpdating: Bool = false
 
     private var threadsResolved: Bool { counts.total > 0 && counts.open == 0 }
     private var resolved: Bool { threadsResolved && !ciFailedForMe }
@@ -22,6 +24,9 @@ struct TodoSummaryBar: View {
                     .foregroundStyle(Tokens.textMuted)
             }
             Spacer(minLength: 0)
+            if isUpdating {
+                ProgressView().controlSize(.small)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

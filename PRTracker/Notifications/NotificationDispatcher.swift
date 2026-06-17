@@ -80,9 +80,8 @@ final class NotificationDispatcher {
 
         for event in pr.timeline where event.type == .comment {
             if existing.contains("comment_\(event.id)") { continue }
-            let author = event.actor?.login ?? "unknown"
             out.append(NotificationCandidate(
-                kind: .issueComment(eventID: event.id, authorLogin: author, body: event.body ?? ""),
+                kind: .issueComment(eventID: event.id, authorLogin: event.actor?.login, body: event.body ?? ""),
                 prID: pr.id))
         }
 
@@ -100,10 +99,9 @@ final class NotificationDispatcher {
 
         for event in pr.timeline where event.type == .review {
             if existing.contains("review_\(event.id)") { continue }
-            let author = event.actor?.login ?? "unknown"
             let state = event.reviewState ?? .commented
             out.append(NotificationCandidate(
-                kind: .reviewSubmitted(eventID: event.id, authorLogin: author, state: state),
+                kind: .reviewSubmitted(eventID: event.id, authorLogin: event.actor?.login, state: state),
                 prID: pr.id))
         }
 
@@ -145,23 +143,40 @@ final class NotificationDispatcher {
         m.sound = .default
         switch c.kind {
         case .issueComment(_, let author, let body):
-            m.body = "\(author): \(body.prefix(200))"
+            // Author can be nil for ghost/deleted accounts — fall back to personless copy.
+            if let author {
+                m.body = "\(author): \(body.prefix(200))"
+            } else {
+                m.body = "New comment on '\(pr.title)': \(body.prefix(200))"
+            }
         case .codeComment(_, let author, _, let body, let path, let line):
             let loc = line.map { "\(path):\($0)" } ?? path
             m.body = "\(author) commented on \(loc): \(body.prefix(200))"
         case .reviewSubmitted(_, let author, let state):
-            let verb: String = {
-                switch state {
-                case .approved:         return "approved"
-                case .changesRequested: return "requested changes on"
-                case .commented:        return "reviewed"
-                case .pending:          return "reviewed"
-                }
-            }()
-            m.body = "\(author) \(verb) '\(pr.title)'"
+            if let author {
+                let verb: String = {
+                    switch state {
+                    case .approved:         return "approved"
+                    case .changesRequested: return "requested changes on"
+                    case .commented:        return "reviewed"
+                    case .pending:          return "reviewed"
+                    }
+                }()
+                m.body = "\(author) \(verb) '\(pr.title)'"
+            } else {
+                m.body = {
+                    switch state {
+                    case .approved:         return "'\(pr.title)' was approved"
+                    case .changesRequested: return "Changes were requested on '\(pr.title)'"
+                    case .commented:        return "'\(pr.title)' was reviewed"
+                    case .pending:          return "'\(pr.title)' was reviewed"
+                    }
+                }()
+            }
         case .ciFailure:
             m.body = "CI failed on '\(pr.title)'"
         case .stateChange(let newState, let actor):
+            // verb reads correctly in both active ("merged 'X'") and passive ("'X' was merged") voice.
             let verb: String = {
                 switch newState {
                 case .merged: return "merged"
@@ -170,9 +185,19 @@ final class NotificationDispatcher {
                 case .draft:  return "moved to draft"
                 }
             }()
-            m.body = "\(actor ?? "Someone") \(verb) '\(pr.title)'"
+            if let actor {
+                m.body = "\(actor) \(verb) '\(pr.title)'"
+            } else {
+                m.body = "'\(pr.title)' was \(verb)"
+            }
         case .headPushed(_, let actor):
-            m.body = "\(actor ?? "Someone") pushed new commits to '\(pr.title)'"
+            // The pusher's identity isn't available from the GitHub data we sync, so this is
+            // effectively always personless today; keep the actor branch for forward-compat.
+            if let actor {
+                m.body = "\(actor) pushed new commits to '\(pr.title)'"
+            } else {
+                m.body = "New commits were pushed to '\(pr.title)'"
+            }
         case .opened(let author):
             m.body = "\(author) opened '\(pr.title)'"
         }

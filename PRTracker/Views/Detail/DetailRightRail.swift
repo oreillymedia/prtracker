@@ -8,8 +8,13 @@ struct DetailRightRail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                section("Last updated") {
+                section("Last activity") {
                     Text(RelativeTimeFormatter.short(pr.updatedAt))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
+                section("Last checked") {
+                    Text(pr.lastFetchedAt.map { RelativeTimeFormatter.short($0) } ?? "Never")
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.textMuted)
                 }
