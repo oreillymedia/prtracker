@@ -114,6 +114,11 @@ struct MainView: View {
         }
         .sheet(isPresented: $showOnboarding, onDismiss: { appState.showReconfigure = false }) {
             OnboardingView(mode: onboardingMode, keychain: keychain, client: client, coordinator: coordinator)
+                // The sheet doesn't inherit the window's SwiftData container, so
+                // re-inject it (same as the Settings scene). Without this,
+                // OnboardingView's @Environment(\.modelContext) is a throwaway
+                // empty store: seed() can't pre-fill and commit() can't persist.
+                .modelContainer(coordinator.modelContainerForView)
                 .interactiveDismissDisabled(onboardingMode == .firstRun)
         }
     }

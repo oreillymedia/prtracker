@@ -136,6 +136,7 @@ final class SyncCoordinator {
 extension SyncCoordinator {
     var clientForView: GitHubClient { client }
     var syncActorForView: SyncActor { syncActor }
+    var modelContainerForView: ModelContainer { modelContainer }
 }
 
 actor AsyncSemaphore {
