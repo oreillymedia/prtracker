@@ -17,6 +17,7 @@ import Testing
     @Test func rejectsEmptyParts() {
         #expect(RepoRef.parse("/name") == nil)
         #expect(RepoRef.parse("owner/") == nil)
+        #expect(RepoRef.parse("/") == nil)
         #expect(RepoRef.parse("") == nil)
     }
     @Test func rejectsExtraSlashes() { #expect(RepoRef.parse("a/b/c") == nil) }

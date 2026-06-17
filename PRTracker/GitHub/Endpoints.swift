@@ -11,7 +11,7 @@ extension RepoRef {
     /// and each part; requires exactly two non-empty parts. Returns nil otherwise.
     static func parse(_ raw: String) -> RepoRef? {
         let parts = raw.split(separator: "/", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
         return RepoRef(owner: parts[0], name: parts[1])
     }
