@@ -3,101 +3,126 @@ import SwiftData
 
 struct OnboardingView: View {
     @Environment(\.modelContext) private var ctx
-    @State private var token: String = ""
-    @State private var ownerRepo: String = ""
-    @State private var error: String?
-    @State private var isValidating = false
-    @State private var stage: Stage = .token
+    @Environment(\.dismiss) private var dismiss
 
-    enum Stage { case token, repo }
-
+    let mode: OnboardingModel.Mode
     let keychain: Keychain
     let client: GitHubClient
-    var onReady: () -> Void
+    let coordinator: SyncCoordinator
+
+    @State private var model: OnboardingModel
+    @State private var didSeed = false
+
+    init(mode: OnboardingModel.Mode, keychain: Keychain, client: GitHubClient, coordinator: SyncCoordinator) {
+        self.mode = mode
+        self.keychain = keychain
+        self.client = client
+        self.coordinator = coordinator
+        _model = State(initialValue: OnboardingModel(mode: mode))
+    }
+
+    private let steps = OnboardingModel.Step.allCases
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Set up PR Tracker")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Tokens.text)
-
-            VStack(alignment: .leading, spacing: 12) {
-                switch stage {
-                case .token:
-                    Text("Paste a GitHub Personal Access Token (classic or fine-grained) with `repo` scope.")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Tokens.textMuted)
-                    SecureField("ghp_…", text: $token)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
-                        .frame(maxWidth: 420)
-                    Button("Validate") { Task { await validateToken() } }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
-                        .disabled(token.isEmpty || isValidating)
-                case .repo:
-                    Text("Which repository do you want to track?")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Tokens.textMuted)
-                    TextField("owner/name", text: $ownerRepo)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
-                        .frame(maxWidth: 420)
-                    Button("Save") { Task { await saveRepo() } }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
-                        .disabled(!ownerRepo.contains("/") || isValidating)
-                }
-
-                if let error {
-                    Text(error)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Tokens.changes)
-                }
+        HStack(spacing: 0) {
+            OnboardingStepRail(steps: steps, current: model.step) { step in
+                if step.rawValue <= model.step.rawValue { model.step = step }
             }
-            .padding(16)
-            .background(Tokens.cardBg, in: RoundedRectangle(cornerRadius: 10))
+            .background(Tokens.cardBg)
+            Divider()
+            VStack(alignment: .leading, spacing: 0) {
+                content.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                Divider()
+                navBar.padding(.horizontal, 24).padding(.vertical, 14)
+            }
         }
-        .padding(28)
-        .frame(width: 520, height: 320)
+        .frame(width: 660, height: 480)
+        .task {
+            if !didSeed {
+                didSeed = true
+                if mode == .reconfigure { model.seed(from: ctx) }
+                model.notifStatus = await NotificationAuthorization().currentStatus()
+            }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch model.step {
+        case .welcome: WelcomeStepView()
+        case .connect: ConnectStepView(model: model, onValidate: { Task { await validateToken() } })
+        case .repositories: RepositoriesStepView(model: model, onAdd: { Task { await addRepo() } })
+        case .notifications: NotificationsStepView(model: model, onRequestPermission: { Task { await requestPermission() } })
+        }
+    }
+
+    private var navBar: some View {
+        HStack {
+            if mode == .reconfigure { Button("Cancel") { dismiss() } }
+            if model.step != .welcome {
+                Button("Back") { if let prev = OnboardingModel.Step(rawValue: model.step.rawValue - 1) { model.step = prev } }
+            }
+            Spacer()
+            if model.step == .notifications {
+                Button(mode == .reconfigure ? "Save" : "Finish") { finish() }
+                    .buttonStyle(.glassProminent).controlSize(.large)
+            } else {
+                Button("Continue") { advance() }
+                    .buttonStyle(.glassProminent).controlSize(.large)
+                    .disabled(!model.canContinue(from: model.step))
+            }
+        }
+    }
+
+    private func advance() {
+        guard model.canContinue(from: model.step),
+              let next = OnboardingModel.Step(rawValue: model.step.rawValue + 1) else { return }
+        model.step = next
+    }
+
+    private func finish() {
+        model.commit(into: ctx)
+        if mode == .firstRun {
+            coordinator.start()
+        } else {
+            Task { await coordinator.refresh() }
+            dismiss()
+        }
     }
 
     private func validateToken() async {
-        isValidating = true; defer { isValidating = false }
-        keychain.save(token)
+        model.isValidating = true; defer { model.isValidating = false }
+        keychain.save(model.token)
         do {
-            let user = try await client.validate()
-            let existingVS = (try? ctx.fetch(FetchDescriptor<ViewerState>()))?.first
-            let vs: ViewerState
-            if let existingVS {
-                vs = existingVS
-            } else {
-                let new = ViewerState(); ctx.insert(new); vs = new
-            }
-            let u = User(login: user.login, name: user.name, avatarURL: user.avatar_url)
-            ctx.insert(u)
-            vs.viewer = u
-            try ctx.save()
-            stage = .repo; error = nil
+            let dto = try await client.validate()
+            model.applyValidatedViewer(dto)
+            model.token = ""
         } catch {
             keychain.delete()
-            self.error = "Token rejected. Check the value and try again."
+            model.connectError = "That token was rejected. Check it has repo access and try again."
         }
     }
 
-    private func saveRepo() async {
-        isValidating = true; defer { isValidating = false }
-        let parts = ownerRepo.split(separator: "/")
-        guard parts.count == 2 else { error = "Use owner/name format."; return }
-        let owner = String(parts[0]); let name = String(parts[1])
-        let id = "\(owner)/\(name)"
-        let existing = (try? ctx.fetch(FetchDescriptor<Repo>())) ?? []
-        if let already = existing.first(where: { $0.id == id }) {
-            already.isEnabled = true
-        } else {
-            ctx.insert(Repo(owner: owner, name: name))
+    private func addRepo() async {
+        guard let ref = RepoRef.parse(model.newRepo) else { return }
+        if model.pending.contains(where: { $0.id == ref.slug }) {
+            model.addError = "That repository is already in your list."; return
         }
-        try? ctx.save()
-        onReady()
+        model.isCheckingRepo = true; defer { model.isCheckingRepo = false }
+        model.addError = nil
+        do {
+            _ = try await client.repository(ref)
+            _ = model.addRepo(model.newRepo)
+            model.newRepo = ""
+        } catch GitHubError.repoNotFound {
+            model.addError = "Couldn't find \(ref.slug), or your token can't access it."
+        } catch GitHubError.unauthorized {
+            model.addError = "Your token can't access \(ref.slug)."
+        } catch {
+            model.addError = "Couldn't reach GitHub. Check your connection and try again."
+        }
+    }
+
+    private func requestPermission() async {
+        model.notifStatus = await NotificationAuthorization().requestAuthorization()
     }
 }

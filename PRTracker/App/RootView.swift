@@ -49,15 +49,13 @@ struct RootView: View {
         let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && !repos.isEmpty
         Group {
             if signedIn {
-                MainView(coordinator: coordinator, onOpenSettings: { openSettings() })
+                MainView(keychain: keychain, client: client, coordinator: coordinator, onOpenSettings: { openSettings() })
                     .task {
                         coordinator.start()
                         await firstLaunchAuthorizationIfNeeded()
                     }
             } else {
-                OnboardingView(keychain: keychain, client: client, onReady: {
-                    coordinator.start()
-                })
+                OnboardingView(mode: .firstRun, keychain: keychain, client: client, coordinator: coordinator)
             }
         }
         .preferredColorScheme(resolvedColorScheme())
@@ -81,10 +79,13 @@ struct MainView: View {
     // dereferences a dangling `repo` relationship on a deleted PR.
     @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled }) private var prs: [PullRequest]
 
+    let keychain: Keychain
+    let client: GitHubClient
     let coordinator: SyncCoordinator
     var onOpenSettings: () -> Void
 
     var body: some View {
+        @Bindable var appState = appState
         let viewer = viewerStates.first?.viewer
 
         NavigationSplitView {
@@ -96,6 +97,9 @@ struct MainView: View {
             } else {
                 MailEmptyDetailView()
             }
+        }
+        .sheet(isPresented: $appState.showReconfigure) {
+            OnboardingView(mode: .reconfigure, keychain: keychain, client: client, coordinator: coordinator)
         }
     }
 }
