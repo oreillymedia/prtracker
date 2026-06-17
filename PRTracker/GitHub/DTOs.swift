@@ -148,3 +148,7 @@ nonisolated struct NotificationDTO: Decodable {
         let type: String              // "PullRequest" | "Issue"
     }
 }
+
+nonisolated struct RepoDTO: Decodable, Equatable {
+    let full_name: String
+}

@@ -93,4 +93,9 @@ extension GitHubClient {
     func issueComments(repo: RepoRef, number: Int) async throws -> [CommentDTO] {
         try await send(Endpoints.issueComments(repo, number: number), as: [CommentDTO].self)
     }
+    /// Verify a repo exists and is accessible to the token. Throws
+    /// `.repoNotFound` (404) or `.unauthorized` (401) otherwise.
+    func repository(_ repo: RepoRef) async throws -> RepoDTO {
+        try await send(Endpoints.repo(repo), as: RepoDTO.self)
+    }
 }
