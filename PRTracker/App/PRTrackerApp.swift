@@ -99,6 +99,9 @@ struct PRTrackerApp: App {
                     updater.checkForUpdates()
                 }
                 .disabled(!updater.canCheckForUpdates)
+                Button("Set Up PR Tracker Again…") {
+                    appState.showReconfigure = true
+                }
             }
         }
 

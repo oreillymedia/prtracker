@@ -14,6 +14,9 @@ final class AppState {
     }
     /// Live sidebar search text. Ephemeral — intentionally not persisted across launches.
     var searchText: String = ""
+    /// Set by the "Set Up PR Tracker Again…" menu command; presents the
+    /// reconfigure onboarding sheet. Ephemeral.
+    var showReconfigure: Bool = false
     var rateLimitRemaining: Int? = nil
     var rateLimitResetAt: Date? = nil
 
