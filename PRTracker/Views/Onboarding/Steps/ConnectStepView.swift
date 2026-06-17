@@ -35,6 +35,7 @@ struct ConnectStepView: View {
 
             HStack {
                 SecureField("ghp_…", text: $model.token).textFieldStyle(.roundedBorder)
+                    .onSubmit { if !model.token.isEmpty && !model.isValidating { onValidate() } }
                 Button("Validate") { onValidate() }
                     .disabled(model.token.isEmpty || model.isValidating)
             }
