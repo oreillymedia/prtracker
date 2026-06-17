@@ -4,13 +4,21 @@ struct MailDetailHeader: View {
     let pr: PullRequest
     let todoCounts: TodoCounts
     let ciFailedForMe: Bool
+    var isUpdating: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             metadataRow
             if todoCounts.total > 0 || ciFailedForMe {
-                TodoSummaryBar(counts: todoCounts, ciFailedForMe: ciFailedForMe)
+                TodoSummaryBar(counts: todoCounts, ciFailedForMe: ciFailedForMe, isUpdating: isUpdating)
                     .padding(.top, 2)
+            } else if isUpdating {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Updating…").font(.system(size: 11.5)).foregroundStyle(Tokens.textMuted)
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 2)
             }
         }
         .padding(.horizontal, 18)

@@ -26,7 +26,7 @@ struct PRDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe)
+            MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe, isUpdating: isLoading)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let loadError {
@@ -46,19 +46,11 @@ struct PRDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                if isLoading {
-                    // Surfaces the in-flight per-PR fetch (loadTimeline): the
-                    // refresh control becomes a spinner while this PR updates,
-                    // then returns to the refresh button when done.
-                    ProgressView()
-                        .controlSize(.small)
-                        .help("Updating…")
-                } else {
-                    Button { Task { await loadTimeline() } } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Refresh")
+                Button { Task { await loadTimeline() } } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
+                .help("Refresh")
+                .disabled(isLoading)
 
                 Button {
                     if let url = URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)") {
