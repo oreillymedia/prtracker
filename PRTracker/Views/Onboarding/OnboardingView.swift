@@ -85,8 +85,10 @@ struct OnboardingView: View {
             coordinator.start()
         } else {
             Task { await coordinator.refresh() }
-            dismiss()
         }
+        // Onboarding is always presented as a sheet now (first-run included),
+        // so both modes dismiss; MainView shows the configured app behind it.
+        dismiss()
     }
 
     private func validateToken() async {

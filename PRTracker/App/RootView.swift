@@ -46,28 +46,23 @@ struct RootView: View {
     }
 
     var body: some View {
-        let signedIn = (keychain.load() != nil) && (viewerStates.first?.viewer != nil) && !repos.isEmpty
-        Group {
-            if signedIn {
-                MainView(keychain: keychain, client: client, coordinator: coordinator, onOpenSettings: { openSettings() })
-                    .task {
-                        coordinator.start()
-                        await firstLaunchAuthorizationIfNeeded()
-                    }
-            } else {
-                OnboardingView(mode: .firstRun, keychain: keychain, client: client, coordinator: coordinator)
+        // The app always shows MainView; onboarding is a sheet MainView presents
+        // automatically when no repos are configured (or on demand to reconfigure).
+        MainView(keychain: keychain, client: client, coordinator: coordinator, onOpenSettings: { openSettings() })
+            .task {
+                coordinator.start()
+                await firstLaunchAuthorizationIfNeeded()
             }
-        }
-        .preferredColorScheme(resolvedColorScheme())
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                let now = Date.now
-                if now.timeIntervalSince(lastActiveTriggerAt) > 30 {
-                    lastActiveTriggerAt = now
-                    Task { await coordinator.refresh() }
+            .preferredColorScheme(resolvedColorScheme())
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    let now = Date.now
+                    if now.timeIntervalSince(lastActiveTriggerAt) > 30 {
+                        lastActiveTriggerAt = now
+                        Task { await coordinator.refresh() }
+                    }
                 }
             }
-        }
     }
 }
 
@@ -78,11 +73,15 @@ struct MainView: View {
     // moment it's disabled or cascade-deleted, so the detail lookup never
     // dereferences a dangling `repo` relationship on a deleted PR.
     @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled }) private var prs: [PullRequest]
+    @Query private var repos: [Repo]
 
     let keychain: Keychain
     let client: GitHubClient
     let coordinator: SyncCoordinator
     var onOpenSettings: () -> Void
+
+    @State private var showOnboarding = false
+    @State private var onboardingMode: OnboardingModel.Mode = .firstRun
 
     var body: some View {
         @Bindable var appState = appState
@@ -98,8 +97,29 @@ struct MainView: View {
                 MailEmptyDetailView()
             }
         }
-        .sheet(isPresented: $appState.showReconfigure) {
-            OnboardingView(mode: .reconfigure, keychain: keychain, client: client, coordinator: coordinator)
+        // First-run onboarding presents automatically when no repos are
+        // configured; the menu command requests a reconfigure (only meaningful
+        // once at least one repo exists).
+        .onAppear { if repos.isEmpty { presentOnboarding(.firstRun) } }
+        .onChange(of: repos.isEmpty) { _, isEmpty in
+            if isEmpty { presentOnboarding(.firstRun) }
         }
+        .onChange(of: appState.showReconfigure) { _, on in
+            guard on else { return }
+            if repos.isEmpty {
+                appState.showReconfigure = false   // nothing to reconfigure yet
+            } else {
+                presentOnboarding(.reconfigure)
+            }
+        }
+        .sheet(isPresented: $showOnboarding, onDismiss: { appState.showReconfigure = false }) {
+            OnboardingView(mode: onboardingMode, keychain: keychain, client: client, coordinator: coordinator)
+                .interactiveDismissDisabled(onboardingMode == .firstRun)
+        }
+    }
+
+    private func presentOnboarding(_ mode: OnboardingModel.Mode) {
+        onboardingMode = mode
+        showOnboarding = true
     }
 }
