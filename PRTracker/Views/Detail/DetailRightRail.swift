@@ -13,11 +13,6 @@ struct DetailRightRail: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.textMuted)
                 }
-                section("Pull Request") {
-                    Text("#\(pr.number)")
-                        .font(.system(size: 12).monospacedDigit())
-                        .foregroundStyle(Tokens.textMuted)
-                }
                 section("Repository") {
                     Text(pr.repo.id)
                         .font(.system(size: 12))
@@ -57,6 +52,11 @@ struct DetailRightRail: View {
                 section("Opened") {
                     Text(RelativeTimeFormatter.short(pr.openedAt))
                         .font(.system(size: 12))
+                        .foregroundStyle(Tokens.textMuted)
+                }
+                section("Pull Request") {
+                    Text("#\(pr.number)")
+                        .font(.system(size: 12).monospacedDigit())
                         .foregroundStyle(Tokens.textMuted)
                 }
             }
