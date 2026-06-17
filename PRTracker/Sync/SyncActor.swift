@@ -75,6 +75,7 @@ actor SyncActor {
             else if dto.state == "open" { pr.state = .open }
             else { pr.state = .closed }
             pr.mergeable = dto.mergeable_state.flatMap { Mergeable(rawValue: $0.uppercased()) } ?? .unknown
+            pr.lastFetchedAt = .now
 
             for l in pr.labels { ctx.delete(l) }
             for ldto in dto.labels { ctx.insert(Label(name: ldto.name, pr: pr)) }
@@ -311,6 +312,13 @@ actor SyncActor {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
         pr.lastReadAt = date
+        try ctx.save()
+    }
+
+    func setLastFetched(prID: String, date: Date) throws {
+        let ctx = modelContext
+        guard let pr = prByID(prID, ctx: ctx) else { return }
+        pr.lastFetchedAt = date
         try ctx.save()
     }
 

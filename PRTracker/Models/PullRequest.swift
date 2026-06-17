@@ -27,6 +27,9 @@ final class PullRequest {
     var mentionHint: String?
     var involvedHint: String?
     var lastReadAt: Date?
+    /// When the app last successfully fetched this PR's data (sync or detail
+    /// refresh). Distinct from `updatedAt`, which is GitHub's PR-activity time.
+    var lastFetchedAt: Date?
 
     /// Semantically: the most recent moment the user selected this PR's row.
     /// Backed by the same column as `lastReadAt` to avoid a SwiftData

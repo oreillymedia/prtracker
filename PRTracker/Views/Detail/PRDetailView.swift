@@ -109,6 +109,7 @@ struct PRDetailView: View {
             try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments)
             try await syncActor.updatePRStatistics(prID: prID, dto: detail)
             try await syncActor.upsertCIChecks(prID: prID, dto: checks)
+            try await syncActor.setLastFetched(prID: prID, date: .now)
             loadError = nil
         } catch is CancellationError {
             // .task replaced before we finished; new task will reload — don't surface.
