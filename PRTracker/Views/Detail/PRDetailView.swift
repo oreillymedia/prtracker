@@ -46,11 +46,19 @@ struct PRDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button { Task { await loadTimeline() } } label: {
-                    Image(systemName: "arrow.clockwise")
+                if isLoading {
+                    // Surfaces the in-flight per-PR fetch (loadTimeline): the
+                    // refresh control becomes a spinner while this PR updates,
+                    // then returns to the refresh button when done.
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("Updating…")
+                } else {
+                    Button { Task { await loadTimeline() } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Refresh")
                 }
-                .help("Refresh")
-                .disabled(isLoading)
 
                 Button {
                     if let url = URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)") {
