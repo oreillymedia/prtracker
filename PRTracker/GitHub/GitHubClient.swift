@@ -19,7 +19,7 @@ actor GitHubClient {
         return d
     }()
 
-    private func request(_ url: URL) -> URLRequest {
+    private func request(_ url: URL, conditional: Bool) -> URLRequest {
         var r = URLRequest(url: url)
         r.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         r.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -27,14 +27,26 @@ actor GitHubClient {
         if let token = tokenProvider() {
             r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        if let etag = etagProvider(url) {
+        // Conditional requests are opt-in: only polling endpoints send
+        // If-None-Match. One-shot calls (validate/repository) must always get a
+        // fresh 200 — a surprise 304 there would read as "no data".
+        if conditional, let etag = etagProvider(url) {
             r.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
         return r
     }
 
-    private func send<T: Decodable>(_ url: URL, as: T.Type) async throws -> T {
-        let req = request(url)
+    /// Variant that treats a 304 (Not Modified) as "no change" rather than an
+    /// error. Returns `nil` so the caller can keep its existing stored data and
+    /// skip the upsert. Conditional requests don't count against the GitHub rate
+    /// limit, so this is the cheap path for steady-state polling.
+    private func sendConditional<T: Decodable>(_ url: URL, as t: T.Type) async throws -> T? {
+        do { return try await send(url, as: t, conditional: true) }
+        catch GitHubError.notModified { return nil }
+    }
+
+    private func send<T: Decodable>(_ url: URL, as: T.Type, conditional: Bool = false) async throws -> T {
+        let req = request(url, conditional: conditional)
         let (data, resp): (Data, URLResponse)
         do { (data, resp) = try await session.data(for: req) }
         catch { throw GitHubError.network(message: error.localizedDescription) }
@@ -42,7 +54,7 @@ actor GitHubClient {
         switch http.statusCode {
         case 304: throw GitHubError.notModified
         case 200..<300:
-            etagSink(url, http.value(forHTTPHeaderField: "ETag"))
+            if conditional { etagSink(url, http.value(forHTTPHeaderField: "ETag")) }
             do { return try Self.isoDecoder.decode(T.self, from: data) }
             catch { throw GitHubError.decoding(message: String(describing: error)) }
         case 401: throw GitHubError.unauthorized
@@ -70,25 +82,28 @@ extension GitHubClient {
     func listRecentlyMerged(repo: RepoRef, limit: Int) async throws -> [PullRequestDTO] {
         try await send(Endpoints.pulls(repo, state: "closed", perPage: limit), as: [PullRequestDTO].self)
     }
-    func checkRuns(repo: RepoRef, ref: String) async throws -> CheckRunsResponseDTO {
-        try await send(Endpoints.checkRuns(repo, ref: ref), as: CheckRunsResponseDTO.self)
+    // Per-PR polling endpoints are conditional: they return `nil` on a 304 so
+    // the caller keeps existing data. These are the calls that multiply by the
+    // number of PRs every cycle, so 304s here are the bulk of the savings.
+    func checkRuns(repo: RepoRef, ref: String) async throws -> CheckRunsResponseDTO? {
+        try await sendConditional(Endpoints.checkRuns(repo, ref: ref), as: CheckRunsResponseDTO.self)
     }
     func participatingNotifications() async throws -> [NotificationDTO] {
         try await send(Endpoints.notificationsParticipating, as: [NotificationDTO].self)
     }
     /// Fetches a single PR's full detail, which includes diffstat fields
     /// (additions/deletions/changed_files) that are not in the list endpoint.
-    func pullRequestDetail(repo: RepoRef, number: Int) async throws -> PullRequestDTO {
-        try await send(Endpoints.pullRequest(repo, number: number), as: PullRequestDTO.self)
+    func pullRequestDetail(repo: RepoRef, number: Int) async throws -> PullRequestDTO? {
+        try await sendConditional(Endpoints.pullRequest(repo, number: number), as: PullRequestDTO.self)
     }
-    func timeline(repo: RepoRef, number: Int) async throws -> [TimelineItemDTO] {
-        try await send(Endpoints.timeline(repo, number: number), as: [TimelineItemDTO].self)
+    func timeline(repo: RepoRef, number: Int) async throws -> [TimelineItemDTO]? {
+        try await sendConditional(Endpoints.timeline(repo, number: number), as: [TimelineItemDTO].self)
     }
-    func reviews(repo: RepoRef, number: Int) async throws -> [ReviewDTO] {
-        try await send(Endpoints.reviews(repo, number: number), as: [ReviewDTO].self)
+    func reviews(repo: RepoRef, number: Int) async throws -> [ReviewDTO]? {
+        try await sendConditional(Endpoints.reviews(repo, number: number), as: [ReviewDTO].self)
     }
-    func reviewComments(repo: RepoRef, number: Int) async throws -> [ReviewCommentDTO] {
-        try await send(Endpoints.reviewComments(repo, number: number), as: [ReviewCommentDTO].self)
+    func reviewComments(repo: RepoRef, number: Int) async throws -> [ReviewCommentDTO]? {
+        try await sendConditional(Endpoints.reviewComments(repo, number: number), as: [ReviewCommentDTO].self)
     }
     func issueComments(repo: RepoRef, number: Int) async throws -> [CommentDTO] {
         try await send(Endpoints.issueComments(repo, number: number), as: [CommentDTO].self)

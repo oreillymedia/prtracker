@@ -120,16 +120,18 @@ final class SyncCoordinator {
                     await semaphore.wait()
                     defer { Task { await semaphore.signal() } }
                     do {
-                        let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha)
-                        try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
+                        // nil == 304 Not Modified: keep stored data, skip upsert.
+                        if let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha) {
+                            try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
+                        }
                         if fetchThreads {
                             async let t = clientRef.timeline(repo: ref, number: pr.number)
                             async let r = clientRef.reviews(repo: ref, number: pr.number)
                             async let rc = clientRef.reviewComments(repo: ref, number: pr.number)
                             let (tItems, reviewDTOs, reviewComments) = try await (t, r, rc)
-                            try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems)
-                            try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs)
-                            try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments)
+                            if let tItems { try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems) }
+                            if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs) }
+                            if let reviewComments { try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments) }
                         }
                     } catch is GitHubError {
                         // ignore per-PR failures; toolbar surfaces aggregate errors only

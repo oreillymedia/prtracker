@@ -62,8 +62,8 @@ extension GitHubClientTests {
                 url: "https://api.github.com/repos/oreilly/spark-ios/commits/d4f91ee/check-runs",
                 status: 200, body: fixture("check_runs"))
             let r = try await makeClient().checkRuns(repo: RepoRef(owner: "oreilly", name: "spark-ios"), ref: "d4f91ee")
-            #expect(r.total_count == 12)
-            #expect(r.check_runs.count == 2)
+            #expect(r?.total_count == 12)
+            #expect(r?.check_runs.count == 2)
         }
     }
 
@@ -100,7 +100,34 @@ extension GitHubClientTests {
         }
     }
 
-    @Test func sendsIfNoneMatchWhenEtagProvided() async throws {
+    @Test func sendsIfNoneMatchOnConditionalRequest() async throws {
+        try await StubURLProtocol.withExclusiveStubs {
+            StubURLProtocol.register(
+                url: "https://api.github.com/repos/oreilly/spark-ios/commits/d4f91ee/check-runs",
+                status: 200, headers: ["ETag": "W/\"abc\""], body: fixture("check_runs"))
+            let client = GitHubClient(
+                session: URLSession(configuration: .stubbed),
+                tokenProvider: { "ghp_test" },
+                etagProvider: { _ in "W/\"abc\"" },
+                etagSink: { _,_ in }
+            )
+            _ = try await client.checkRuns(repo: RepoRef(owner: "oreilly", name: "spark-ios"), ref: "d4f91ee")
+            let lastReq = StubURLProtocol.captured.last!
+            #expect(lastReq.value(forHTTPHeaderField: "If-None-Match") == "W/\"abc\"")
+        }
+    }
+
+    @Test func conditionalRequestReturnsNilOnNotModified() async throws {
+        try await StubURLProtocol.withExclusiveStubs {
+            StubURLProtocol.register(
+                url: "https://api.github.com/repos/oreilly/spark-ios/commits/d4f91ee/check-runs",
+                status: 304, body: Data())
+            let runs = try await makeClient().checkRuns(repo: RepoRef(owner: "oreilly", name: "spark-ios"), ref: "d4f91ee")
+            #expect(runs == nil)
+        }
+    }
+
+    @Test func validateDoesNotSendIfNoneMatch() async throws {
         try await StubURLProtocol.withExclusiveStubs {
             StubURLProtocol.register(
                 url: "https://api.github.com/user", status: 200,
@@ -113,7 +140,9 @@ extension GitHubClientTests {
             )
             _ = try await client.validate()
             let lastReq = StubURLProtocol.captured.last!
-            #expect(lastReq.value(forHTTPHeaderField: "If-None-Match") == "W/\"abc\"")
+            // One-shot endpoints must never send a conditional header, so they
+            // can't be answered with a 304 that strips the body.
+            #expect(lastReq.value(forHTTPHeaderField: "If-None-Match") == nil)
         }
     }
 }

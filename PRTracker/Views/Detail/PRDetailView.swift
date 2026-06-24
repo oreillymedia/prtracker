@@ -108,12 +108,13 @@ struct PRDetailView: View {
             async let rc = client.reviewComments(repo: ref, number: number)
             // Comments come from the timeline ("commented" events) — the separate
             // issue-comments endpoint was fetched and discarded.
+            // nil == 304 Not Modified: keep the stored data and skip that upsert.
             let (tItems, reviewDTOs, detail, checks, reviewComments) = try await (t, r, d, ck, rc)
-            try await syncActor.upsertTimeline(prID: prID, items: tItems)
-            try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs)
-            try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments)
-            try await syncActor.updatePRStatistics(prID: prID, dto: detail)
-            try await syncActor.upsertCIChecks(prID: prID, dto: checks)
+            if let tItems { try await syncActor.upsertTimeline(prID: prID, items: tItems) }
+            if let reviewDTOs { try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs) }
+            if let reviewComments { try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments) }
+            if let detail { try await syncActor.updatePRStatistics(prID: prID, dto: detail) }
+            if let checks { try await syncActor.upsertCIChecks(prID: prID, dto: checks) }
             try await syncActor.setLastFetched(prID: prID, date: .now)
             loadError = nil
             // Viewing a PR marks its current activity as seen: while the app is
