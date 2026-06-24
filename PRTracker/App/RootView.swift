@@ -50,6 +50,12 @@ struct RootView: View {
         // automatically when no repos are configured (or on demand to reconfigure).
         MainView(keychain: keychain, client: client, coordinator: coordinator, onOpenSettings: { openSettings() })
             .task {
+                // Apply the persisted refresh cadence before starting the loop;
+                // otherwise the loop runs at the hardcoded default until the user
+                // re-touches the Settings stepper.
+                if let minutes = viewerStates.first?.refreshIntervalMinutes {
+                    coordinator.setIntervals(foregroundMinutes: minutes)
+                }
                 coordinator.start()
                 await firstLaunchAuthorizationIfNeeded()
             }
@@ -92,7 +98,7 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
+                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView, dispatcher: coordinator.notificationDispatcher)
             } else {
                 MailEmptyDetailView()
             }

@@ -19,6 +19,7 @@ struct MailSourceColumn: View {
             MailListView(syncActor: coordinator.syncActorForView)
 
             Divider()
+            syncStatusRow
             HStack(spacing: 8) {
                 RepoSelectorCard(repos: repos, onOpenSettings: onOpenSettings,
                                  onEnable: { Task { await coordinator.refresh() } })
@@ -35,5 +36,26 @@ struct MailSourceColumn: View {
             .padding(.trailing, 14)
             .padding(.vertical, 8)
         }
+    }
+
+    /// Sync feedback for the main window: a spinner while a background sync runs,
+    /// otherwise the time of the last successful sync. (`SyncCoordinator` is
+    /// `@Observable`, so reading these here keeps the row live.)
+    @ViewBuilder
+    private var syncStatusRow: some View {
+        HStack(spacing: 6) {
+            if coordinator.isSyncing {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                Text("Updating…").microText().foregroundStyle(Tokens.textMuted)
+            } else if let last = coordinator.lastSyncAt {
+                Text("Updated \(RelativeTimeFormatter.short(last))").microText().foregroundStyle(Tokens.textMuted)
+            } else {
+                Text("Not yet synced").microText().foregroundStyle(Tokens.textFaint)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(height: 16)
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
     }
 }

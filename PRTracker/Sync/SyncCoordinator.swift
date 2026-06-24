@@ -16,8 +16,11 @@ final class SyncCoordinator {
 
     private var task: Task<Void, Never>?
     private var foregroundIntervalSec: TimeInterval = 120
-    private var backgroundIntervalSec: TimeInterval = 600
+    private var backgroundIntervalSec: TimeInterval = 300
     private var isBackgroundMode = false
+    /// Set when a refresh is requested while one is already running, so the
+    /// in-flight pass is followed by one more instead of being silently dropped.
+    private var pendingRefresh = false
 
     init(client: GitHubClient, syncActor: SyncActor, modelContainer: ModelContainer) {
         self.client = client
@@ -48,11 +51,20 @@ final class SyncCoordinator {
     }
 
     func refresh() async {
-        if isSyncing { return }
+        // Coalesce a refresh requested mid-sync into a single follow-up pass
+        // rather than dropping it — a manual "Refresh now" during a background
+        // cycle should still take effect.
+        if isSyncing { pendingRefresh = true; return }
         isSyncing = true
-        lastSyncError = nil
         defer { isSyncing = false }
+        repeat {
+            pendingRefresh = false
+            await performRefresh()
+        } while pendingRefresh
+    }
 
+    private func performRefresh() async {
+        lastSyncError = nil
         let ctx = ModelContext(modelContainer)
         let enabled = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
         if enabled.isEmpty { return }
@@ -60,14 +72,13 @@ final class SyncCoordinator {
         var anySucceeded = false
         for repo in enabled {
             let ref = RepoRef(owner: repo.owner, name: repo.name)
-            // A repo's very first successful sync establishes a silent baseline
-            // instead of posting — its whole current state is pre-existing, not
-            // new activity. `lastFetchedAt == nil` marks a never-synced repo
-            // (set by upsertPullRequests on success), covering newly-added and
-            // freshly-onboarded repos without a per-call flag.
-            let isFirstSync = repo.lastFetchedAt == nil
+            // A repo needs a silent baseline (record current state without
+            // posting) until its threads have been fetched and baselined once —
+            // covers a never-synced repo AND the first run after thread polling
+            // was added to existing installs. Both avoid a backlog flood.
+            let needsBaseline = repo.lastFetchedAt == nil || !repo.didBaselineThreads
             do {
-                try await refreshRepo(ref: ref, repoID: repo.id, isFirstSync: isFirstSync)
+                try await refreshRepo(ref: ref, repoID: repo.id, needsBaseline: needsBaseline)
                 anySucceeded = true
             } catch let e as GitHubError {
                 lastSyncError = e
@@ -79,26 +90,47 @@ final class SyncCoordinator {
     }
 
     /// Sync a single repo: fetch its open + recently-merged PRs, upsert them,
-    /// refresh CI checks for open PRs, then run notifications for the repo. A
-    /// thrown error aborts only this repo; `refresh()` continues to the next.
-    private func refreshRepo(ref: RepoRef, repoID: String, isFirstSync: Bool) async throws {
+    /// refresh CI checks for all open PRs and threads (timeline/reviews/review
+    /// comments) for the ones that actually changed, then run notifications for
+    /// the repo. A thrown error aborts only this repo; `refresh()` continues to
+    /// the next.
+    private func refreshRepo(ref: RepoRef, repoID: String, needsBaseline: Bool) async throws {
+        // Snapshot stored updatedAt before the upsert overwrites it, so we can
+        // tell which PRs changed and only pull threads for those.
+        let priorUpdatedAt = await syncActor.updatedAtByID(repoID: repoID)
+
         async let openPRs = client.listOpenPRs(repo: ref)
         async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
         let (open, closed) = try await (openPRs, recent)
         let allPRs = open + closed
         try await syncActor.upsertPullRequests(allPRs, inRepoID: repoID)
 
+        // Pull full threads on the first (baseline) pass for every open PR, then
+        // only for PRs whose updatedAt moved — keeps steady-state API cost low.
+        let threadPRs = needsBaseline ? open : open.filter { priorUpdatedAt[$0.node_id] != $0.updated_at }
+
         await withTaskGroup(of: Void.self) { group in
             let semaphore = AsyncSemaphore(value: 5)
             let actorRef = syncActor
             let clientRef = client
+            let threadIDs = Set(threadPRs.map(\.node_id))
             for pr in open {
+                let fetchThreads = threadIDs.contains(pr.node_id)
                 group.addTask {
                     await semaphore.wait()
                     defer { Task { await semaphore.signal() } }
                     do {
                         let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha)
                         try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
+                        if fetchThreads {
+                            async let t = clientRef.timeline(repo: ref, number: pr.number)
+                            async let r = clientRef.reviews(repo: ref, number: pr.number)
+                            async let rc = clientRef.reviewComments(repo: ref, number: pr.number)
+                            let (tItems, reviewDTOs, reviewComments) = try await (t, r, rc)
+                            try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems)
+                            try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs)
+                            try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments)
+                        }
                     } catch is GitHubError {
                         // ignore per-PR failures; toolbar surfaces aggregate errors only
                     } catch { }
@@ -107,10 +139,12 @@ final class SyncCoordinator {
         }
 
         if let d = notificationDispatcher {
-            if isFirstSync {
-                // Silently record everything currently present so only later
-                // activity notifies; avoids a backlog flood on a new repo.
+            if needsBaseline {
+                // Silently record everything currently present (including the
+                // threads just fetched) so only later activity notifies; avoids
+                // a backlog flood. Mark the repo so subsequent syncs notify.
                 await d.backfillSilentBaseline(repoID: repoID)
+                try? await syncActor.markThreadsBaselined(repoID: repoID)
             } else {
                 await d.process(repoID: repoID)
             }

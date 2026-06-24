@@ -252,7 +252,31 @@ final class NotificationDispatcher {
             let target = repoID
             return FetchDescriptor<PullRequest>(predicate: #Predicate { $0.repo.id == target })
         }()
-        let prs = (try? ctx.fetch(descriptor)) ?? []
+        baseline(prs: (try? ctx.fetch(descriptor)) ?? [], ctx: ctx)
+        try? ctx.save()
+    }
+
+    /// Silent baseline scoped to a single PR — used when the user opens a PR's
+    /// detail while looking at the app, so its current activity is treated as
+    /// already-seen and won't re-notify after they switch away.
+    func backfillSilentBaseline(prID: String) async {
+        let ctx = ModelContext(modelContainer)
+        let target = prID
+        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: #Predicate { $0.id == target }))) ?? []
+        baseline(prs: prs, ctx: ctx)
+        try? ctx.save()
+    }
+
+    /// Baseline a PR only when the app is frontmost (the user is actively
+    /// viewing it). When backgrounded, do nothing so genuinely-new activity on
+    /// the open PR still notifies.
+    func baselineIfViewing(prID: String) async {
+        if await MainActor.run(body: { activity.isFrontmost() }) {
+            await backfillSilentBaseline(prID: prID)
+        }
+    }
+
+    private func baseline(prs: [PullRequest], ctx: ModelContext) {
         for pr in prs {
             let existing = Set(pr.notificationLogs.map(\.id))
             for c in collectCandidates(pr: pr, existing: existing) {
@@ -260,6 +284,5 @@ final class NotificationDispatcher {
                 ctx.insert(NotificationLog(id: id, kind: kindFor(c), notifiedAt: .now, pullRequest: pr))
             }
         }
-        try? ctx.save()
     }
 }

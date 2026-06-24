@@ -196,4 +196,63 @@ import UserNotifications
         await dispatcher.process(repoID: repo.id)
         #expect(poster.posted.isEmpty)
     }
+
+    @Test func prScopedBaselineOnlyTouchesThatPR() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        func makePR(_ id: String, _ n: Int) -> PullRequest {
+            let pr = PullRequest(id: id, number: n, title: "T\(n)",
+                                 state: .open, branchHead: "h", branchBase: "main", headSha: "sha\(n)",
+                                 openedAt: .now, updatedAt: .now, author: author, repo: repo)
+            ctx.insert(pr)
+            ctx.insert(TimelineEvent(id: "IC_\(n)", type: .comment, at: .now, pullRequest: pr, actor: author, body: "hi"))
+            return pr
+        }
+        _ = makePR("PR_1", 1)
+        _ = makePR("PR_2", 2)
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.backfillSilentBaseline(prID: "PR_1")
+
+        let logs = (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
+        #expect(logs.contains("comment_IC_1"))
+        #expect(!logs.contains("comment_IC_2"))   // PR_2 untouched
+
+        // PR_1's comment is now baselined; only PR_2's fires.
+        await dispatcher.process(repoID: repo.id)
+        #expect(poster.posted.count == 1)
+        #expect(poster.posted[0].title == "\(repo.id) #2")
+    }
+
+    @Test func baselineIfViewingRespectsFrontmost() async throws {
+        func scenario(frontmost: Bool) async throws -> [String] {
+            let (container, repo, _) = try setup(level: .everything)
+            let ctx = ModelContext(container)
+            let author = User(login: "iris")
+            ctx.insert(author)
+            let pr = PullRequest(id: "PR_9", number: 9, title: "T",
+                                 state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                                 openedAt: .now, updatedAt: .now, author: author, repo: repo)
+            ctx.insert(pr)
+            ctx.insert(TimelineEvent(id: "IC_9", type: .comment, at: .now, pullRequest: pr, actor: author, body: "hi"))
+            try ctx.save()
+
+            let dispatcher = NotificationDispatcher(modelContainer: container, poster: CapturingPoster(),
+                                                    auth: StubAuth(status: .authorized),
+                                                    activity: StubActivityProbe(frontmost: frontmost))
+            await dispatcher.baselineIfViewing(prID: "PR_9")
+            return (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
+        }
+
+        // Frontmost (actively viewing): current activity is baselined.
+        #expect(try await scenario(frontmost: true).contains("comment_IC_9"))
+        // Backgrounded: nothing baselined, so it can still notify later.
+        #expect(try await scenario(frontmost: false).isEmpty)
+    }
 }

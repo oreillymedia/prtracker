@@ -31,6 +31,23 @@ actor SyncActor {
         return try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: predicate)).first
     }
 
+    /// Map of PR node_id → stored `updatedAt` for a repo, read before an upsert
+    /// so the caller can tell which PRs actually changed and skip the expensive
+    /// per-PR thread fetch for the ones that didn't.
+    func updatedAtByID(repoID: String) -> [String: Date] {
+        let ctx = modelContext
+        let target = repoID
+        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: #Predicate { $0.repo.id == target }))) ?? []
+        return Dictionary(uniqueKeysWithValues: prs.map { ($0.id, $0.updatedAt) })
+    }
+
+    func markThreadsBaselined(repoID: String) throws {
+        let ctx = modelContext
+        guard let repo = repoByID(repoID, ctx: ctx) else { return }
+        repo.didBaselineThreads = true
+        try ctx.save()
+    }
+
     func upsertPullRequests(_ dtos: [PullRequestDTO], inRepoID repoID: String) throws {
         let ctx = modelContext
         guard let repo = repoByID(repoID, ctx: ctx) else { return }
