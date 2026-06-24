@@ -103,11 +103,12 @@ struct PRDetailView: View {
         do {
             async let t = client.timeline(repo: ref, number: number)
             async let r = client.reviews(repo: ref, number: number)
-            async let c = client.issueComments(repo: ref, number: number)
             async let d = client.pullRequestDetail(repo: ref, number: number)
             async let ck = client.checkRuns(repo: ref, ref: headSha)
             async let rc = client.reviewComments(repo: ref, number: number)
-            let (tItems, reviewDTOs, _, detail, checks, reviewComments) = try await (t, r, c, d, ck, rc)
+            // Comments come from the timeline ("commented" events) — the separate
+            // issue-comments endpoint was fetched and discarded.
+            let (tItems, reviewDTOs, detail, checks, reviewComments) = try await (t, r, d, ck, rc)
             try await syncActor.upsertTimeline(prID: prID, items: tItems)
             try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs)
             try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments)
