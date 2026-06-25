@@ -98,7 +98,7 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView, dispatcher: coordinator.notificationDispatcher)
+                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
             } else {
                 MailEmptyDetailView()
             }

@@ -9,7 +9,6 @@ struct PRDetailView: View {
     let viewer: User?
     let client: GitHubClient
     let syncActor: SyncActor
-    var dispatcher: NotificationDispatcher?
 
     /// How often the open PR re-fetches its threads so conversation updates
     /// appear without a manual refresh.
@@ -117,11 +116,6 @@ struct PRDetailView: View {
             if let checks { try await syncActor.upsertCIChecks(prID: prID, dto: checks) }
             try await syncActor.setLastFetched(prID: prID, date: .now)
             loadError = nil
-            // Viewing a PR marks its current activity as seen: while the app is
-            // frontmost, baseline the just-fetched threads so they don't
-            // re-notify after the user switches away. New activity arriving
-            // later still notifies.
-            await dispatcher?.baselineIfViewing(prID: prID)
         } catch is CancellationError {
             // .task replaced before we finished; new task will reload — don't surface.
         } catch let e as GitHubError {

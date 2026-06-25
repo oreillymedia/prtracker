@@ -47,6 +47,10 @@ struct MailSourceColumn: View {
             if coordinator.isSyncing {
                 ProgressView().controlSize(.small).scaleEffect(0.7)
                 Text("Updating…").microText().foregroundStyle(Tokens.textMuted)
+            } else if let err = coordinator.lastSyncError {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9)).foregroundStyle(Tokens.changes)
+                Text(syncErrorText(err)).microText().foregroundStyle(Tokens.changes)
             } else if let last = coordinator.lastSyncAt {
                 Text("Updated \(RelativeTimeFormatter.short(last))").microText().foregroundStyle(Tokens.textMuted)
             } else {
@@ -57,5 +61,16 @@ struct MailSourceColumn: View {
         .frame(height: 16)
         .padding(.horizontal, 14)
         .padding(.top, 6)
+    }
+
+    private func syncErrorText(_ err: GitHubError) -> String {
+        switch err {
+        case .unauthorized:   return "Sync failed — check your token"
+        case .repoNotFound:   return "Sync failed — repo not found"
+        case .rateLimited:    return "Sync paused — rate limited"
+        case .network:        return "Sync failed — network error"
+        case .decoding:       return "Sync failed — unexpected response"
+        case .notModified:    return "Up to date"
+        }
     }
 }

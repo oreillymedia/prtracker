@@ -56,6 +56,9 @@ final class SyncCoordinator {
         // cycle should still take effect.
         if isSyncing { pendingRefresh = true; return }
         isSyncing = true
+        // Reset once for the whole (possibly coalesced) refresh, not per pass, so
+        // a later pass can't silently erase an earlier pass's error.
+        lastSyncError = nil
         defer { isSyncing = false }
         repeat {
             pendingRefresh = false
@@ -64,7 +67,6 @@ final class SyncCoordinator {
     }
 
     private func performRefresh() async {
-        lastSyncError = nil
         let ctx = ModelContext(modelContainer)
         let enabled = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
         if enabled.isEmpty { return }
@@ -90,32 +92,30 @@ final class SyncCoordinator {
     }
 
     /// Sync a single repo: fetch its open + recently-merged PRs, upsert them,
-    /// refresh CI checks for all open PRs and threads (timeline/reviews/review
-    /// comments) for the ones that actually changed, then run notifications for
-    /// the repo. A thrown error aborts only this repo; `refresh()` continues to
-    /// the next.
+    /// then refresh CI checks and threads (timeline/reviews/review comments) for
+    /// every open PR, and run notifications for the repo. A thrown error aborts
+    /// only this repo; `refresh()` continues to the next.
+    ///
+    /// Threads are fetched for *every* open PR every cycle rather than only for
+    /// PRs whose `updated_at` moved: GitHub doesn't reliably bump a PR's
+    /// `updated_at` for inline review comments, so a change-filter would silently
+    /// miss exactly the review feedback we most want to surface. Conditional
+    /// ETags make the unchanged ones cheap (a 304 doesn't count against the rate
+    /// limit), so correctness wins without a real cost.
     private func refreshRepo(ref: RepoRef, repoID: String, needsBaseline: Bool) async throws {
-        // Snapshot stored updatedAt before the upsert overwrites it, so we can
-        // tell which PRs changed and only pull threads for those.
-        let priorUpdatedAt = await syncActor.updatedAtByID(repoID: repoID)
-
         async let openPRs = client.listOpenPRs(repo: ref)
         async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
         let (open, closed) = try await (openPRs, recent)
         let allPRs = open + closed
         try await syncActor.upsertPullRequests(allPRs, inRepoID: repoID)
 
-        // Pull full threads on the first (baseline) pass for every open PR, then
-        // only for PRs whose updatedAt moved — keeps steady-state API cost low.
-        let threadPRs = needsBaseline ? open : open.filter { priorUpdatedAt[$0.node_id] != $0.updated_at }
-
-        await withTaskGroup(of: Void.self) { group in
+        // Each task reports whether all of its fetches succeeded, so the baseline
+        // pass can tell whether it saw the repo's full current state.
+        let outcomes = await withTaskGroup(of: Bool.self) { group in
             let semaphore = AsyncSemaphore(value: 5)
             let actorRef = syncActor
             let clientRef = client
-            let threadIDs = Set(threadPRs.map(\.node_id))
             for pr in open {
-                let fetchThreads = threadIDs.contains(pr.node_id)
                 group.addTask {
                     await semaphore.wait()
                     defer { Task { await semaphore.signal() } }
@@ -124,32 +124,37 @@ final class SyncCoordinator {
                         if let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha) {
                             try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
                         }
-                        if fetchThreads {
-                            async let t = clientRef.timeline(repo: ref, number: pr.number)
-                            async let r = clientRef.reviews(repo: ref, number: pr.number)
-                            async let rc = clientRef.reviewComments(repo: ref, number: pr.number)
-                            let (tItems, reviewDTOs, reviewComments) = try await (t, r, rc)
-                            if let tItems { try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems) }
-                            if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs) }
-                            if let reviewComments { try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments) }
-                        }
-                    } catch is GitHubError {
-                        // ignore per-PR failures; toolbar surfaces aggregate errors only
-                    } catch { }
+                        async let t = clientRef.timeline(repo: ref, number: pr.number)
+                        async let r = clientRef.reviews(repo: ref, number: pr.number)
+                        async let rc = clientRef.reviewComments(repo: ref, number: pr.number)
+                        let (tItems, reviewDTOs, reviewComments) = try await (t, r, rc)
+                        if let tItems { try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems) }
+                        if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs) }
+                        if let reviewComments { try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments) }
+                        return true
+                    } catch {
+                        // Per-PR failure; toolbar surfaces aggregate errors only.
+                        return false
+                    }
                 }
             }
+            var all = true
+            for await ok in group where !ok { all = false }
+            return all
         }
 
-        if let d = notificationDispatcher {
-            if needsBaseline {
-                // Silently record everything currently present (including the
-                // threads just fetched) so only later activity notifies; avoids
-                // a backlog flood. Mark the repo so subsequent syncs notify.
-                await d.backfillSilentBaseline(repoID: repoID)
-                try? await syncActor.markThreadsBaselined(repoID: repoID)
-            } else {
-                await d.process(repoID: repoID)
+        guard let d = notificationDispatcher else { return }
+        if needsBaseline {
+            // Only establish the baseline once we've seen the repo's full current
+            // state — otherwise pre-existing comments that failed to fetch would
+            // later notify as if new. On partial failure, stay unbaselined and
+            // retry next cycle (silent until then). The baseline and the
+            // "baselined" flag are written in one save so they can't diverge.
+            if outcomes {
+                await d.baselineRepoThreads(repoID: repoID)
             }
+        } else {
+            await d.process(repoID: repoID)
         }
     }
 
