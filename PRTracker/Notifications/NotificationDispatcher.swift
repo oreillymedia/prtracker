@@ -252,7 +252,26 @@ final class NotificationDispatcher {
             let target = repoID
             return FetchDescriptor<PullRequest>(predicate: #Predicate { $0.repo.id == target })
         }()
-        let prs = (try? ctx.fetch(descriptor)) ?? []
+        baseline(prs: (try? ctx.fetch(descriptor)) ?? [], ctx: ctx)
+        try? ctx.save()
+    }
+
+    /// Baseline a repo's threads AND mark it baselined in a single save, so the
+    /// "baselined" flag can never persist out of step with the log rows it
+    /// represents. Called by the sync loop once it has fetched the repo's full
+    /// current state.
+    func baselineRepoThreads(repoID: String) async {
+        let ctx = ModelContext(modelContainer)
+        let target = repoID
+        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: #Predicate { $0.repo.id == target }))) ?? []
+        baseline(prs: prs, ctx: ctx)
+        if let repo = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.id == target })))?.first {
+            repo.didBaselineThreads = true
+        }
+        try? ctx.save()
+    }
+
+    private func baseline(prs: [PullRequest], ctx: ModelContext) {
         for pr in prs {
             let existing = Set(pr.notificationLogs.map(\.id))
             for c in collectCandidates(pr: pr, existing: existing) {
@@ -260,6 +279,5 @@ final class NotificationDispatcher {
                 ctx.insert(NotificationLog(id: id, kind: kindFor(c), notifiedAt: .now, pullRequest: pr))
             }
         }
-        try? ctx.save()
     }
 }

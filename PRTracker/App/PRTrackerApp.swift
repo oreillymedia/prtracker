@@ -31,9 +31,12 @@ struct PRTrackerApp: App {
             bc.dockEnabled = vs.dockBadgeEnabled
         }
         let kc = Keychain()
+        let etagStore = ETagStore(modelContainer: c)
         let cli = GitHubClient(
             session: URLSession(configuration: .default),
-            tokenProvider: { kc.load() })
+            tokenProvider: { kc.load() },
+            etagProvider: { etagStore.etag(for: $0) },
+            etagSink: { etagStore.setEtag($1, for: $0) })
         let act = SyncActor(modelContainer: c)
         self.container = c
         self.appState = AppState()

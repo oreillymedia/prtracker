@@ -50,6 +50,12 @@ struct RootView: View {
         // automatically when no repos are configured (or on demand to reconfigure).
         MainView(keychain: keychain, client: client, coordinator: coordinator, onOpenSettings: { openSettings() })
             .task {
+                // Apply the persisted refresh cadence before starting the loop;
+                // otherwise the loop runs at the hardcoded default until the user
+                // re-touches the Settings stepper.
+                if let minutes = viewerStates.first?.refreshIntervalMinutes {
+                    coordinator.setIntervals(foregroundMinutes: minutes)
+                }
                 coordinator.start()
                 await firstLaunchAuthorizationIfNeeded()
             }

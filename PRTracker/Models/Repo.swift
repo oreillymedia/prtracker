@@ -9,6 +9,12 @@ final class Repo {
     var lastFetchedAt: Date?
     var isEnabled: Bool
     var notificationLevelRaw: String = NotificationLevel.personal.rawValue
+    /// True once the background loop has fetched this repo's PR threads
+    /// (timeline/reviews/comments) and recorded a silent notification baseline.
+    /// Until then, the first thread sync baselines instead of notifying — this
+    /// prevents a backlog flood the first time threads are fetched (new repo, or
+    /// the first run after thread polling was added).
+    var didBaselineThreads: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \PullRequest.repo)
     var pullRequests: [PullRequest] = []

@@ -196,4 +196,34 @@ import UserNotifications
         await dispatcher.process(repoID: repo.id)
         #expect(poster.posted.isEmpty)
     }
+
+    @Test func baselineRepoThreadsBaselinesAndMarksFlag() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_1", number: 1, title: "T",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "sha1",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        ctx.insert(TimelineEvent(id: "IC_1", type: .comment, at: .now, pullRequest: pr, actor: author, body: "hi"))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        await dispatcher.baselineRepoThreads(repoID: repo.id)
+
+        // Posts nothing, records the baseline, and flips the flag in one save.
+        #expect(poster.posted.isEmpty)
+        let logs = (try ctx.fetch(FetchDescriptor<NotificationLog>())).map(\.id)
+        #expect(logs.contains("comment_IC_1"))
+        let refreshed = (try ctx.fetch(FetchDescriptor<Repo>())).first
+        #expect(refreshed?.didBaselineThreads == true)
+
+        // Subsequent process() stays silent for the baselined comment.
+        await dispatcher.process(repoID: repo.id)
+        #expect(poster.posted.isEmpty)
+    }
 }
