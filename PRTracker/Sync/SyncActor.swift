@@ -1,6 +1,14 @@
 import Foundation
 import SwiftData
 
+/// The minimal coordinates needed to poll a single open PR's threads/CI.
+/// Sendable so it can cross the actor boundary out of `SyncActor`.
+struct PRPollTarget: Sendable {
+    let nodeID: String
+    let number: Int
+    let headSha: String
+}
+
 @ModelActor
 actor SyncActor {
     private func userBy(login: String, ctx: ModelContext) -> User? {
@@ -31,16 +39,55 @@ actor SyncActor {
         return try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: predicate)).first
     }
 
-    func upsertPullRequests(_ dtos: [PullRequestDTO], inRepoID repoID: String) throws {
+    /// Recompute the PR's derived activity time from every timestamp we store:
+    /// GitHub's `updated_at`, the newest timeline event (comments, reviews,
+    /// commits, merges, …), and the newest inline review comment. This is the
+    /// single source of truth for "Last activity" and list ordering — computing
+    /// it here, from the PR's current relationships, keeps the list-sync path and
+    /// the per-PR detail path in agreement no matter which one wrote last.
+    /// Call before `ctx.save()` in any upsert that can change those.
+    private func refreshActivity(_ pr: PullRequest) {
+        var latest = pr.updatedAt
+        for e in pr.timeline where e.at > latest { latest = e.at }
+        for c in pr.reviewComments where c.createdAt > latest { latest = c.createdAt }
+        pr.lastActivityAt = latest
+    }
+
+    /// One-time backfill for stores migrated from before `lastActivityAt` existed:
+    /// any row still holding the epoch sentinel gets its activity computed from
+    /// whatever timestamps are already stored. Cheap (a handful of PRs) and idempotent.
+    func backfillActivityIfNeeded() throws {
+        let ctx = modelContext
+        let sentinel = Date(timeIntervalSince1970: 0)
+        let prs = (try? ctx.fetch(FetchDescriptor<PullRequest>())) ?? []
+        var changed = false
+        for pr in prs where pr.lastActivityAt == sentinel {
+            refreshActivity(pr)
+            changed = true
+        }
+        if changed { try ctx.save() }
+    }
+
+    /// Upsert a batch of PRs into a repo.
+    ///
+    /// `reconcileOpen` must be true only when `dtos` is the *authoritative,
+    /// complete* open-PR list (from a fresh 200 on `/pulls?state=open`): in that
+    /// case any stored-open PR absent from the batch is marked closed. It MUST be
+    /// false for the recently-merged batch (a partial `state=closed` list) — and
+    /// for a stale-fallback batch — or we'd wrongly close every open PR that the
+    /// partial list doesn't mention.
+    func upsertPullRequests(_ dtos: [PullRequestDTO], inRepoID repoID: String, reconcileOpen: Bool = true) throws {
         let ctx = modelContext
         guard let repo = repoByID(repoID, ctx: ctx) else { return }
 
-        let dtoIDs = Set(dtos.map(\.node_id))
-        let targetRepoID = repoID
-        let predicate = #Predicate<PullRequest> { $0.repo.id == targetRepoID }
-        let existing = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: predicate))) ?? []
-        for pr in existing where pr.state == .open && !dtoIDs.contains(pr.id) {
-            pr.state = .closed
+        if reconcileOpen {
+            let dtoIDs = Set(dtos.map(\.node_id))
+            let targetRepoID = repoID
+            let predicate = #Predicate<PullRequest> { $0.repo.id == targetRepoID }
+            let existing = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: predicate))) ?? []
+            for pr in existing where pr.state == .open && !dtoIDs.contains(pr.id) {
+                pr.state = .closed
+            }
         }
 
         for dto in dtos {
@@ -76,6 +123,7 @@ actor SyncActor {
             else { pr.state = .closed }
             pr.mergeable = dto.mergeable_state.flatMap { Mergeable(rawValue: $0.uppercased()) } ?? .unknown
             pr.lastFetchedAt = .now
+            refreshActivity(pr)
 
             for l in pr.labels { ctx.delete(l) }
             for ldto in dto.labels { ctx.insert(Label(name: ldto.name, pr: pr)) }
@@ -95,7 +143,31 @@ actor SyncActor {
             }
         }
 
-        repo.lastFetchedAt = .now
+        try ctx.save()
+    }
+
+    /// Read the open PRs' polling coordinates from the store. Used when the
+    /// `/pulls` list 304s (unchanged) so the per-PR thread poll can still run
+    /// against the last-known set without a fresh list fetch.
+    func openPRPollTargets(repoID: String) -> [PRPollTarget] {
+        let ctx = modelContext
+        let targetRepoID = repoID
+        // "open" on GitHub covers both ready and draft PRs; drafts are stored
+        // with stateRaw == "draft" but still need thread polling.
+        let predicate = #Predicate<PullRequest> {
+            $0.repo.id == targetRepoID && ($0.stateRaw == "open" || $0.stateRaw == "draft")
+        }
+        let open = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: predicate))) ?? []
+        return open.map { PRPollTarget(nodeID: $0.id, number: $0.number, headSha: $0.headSha) }
+    }
+
+    /// Record that a repo was fully polled at `date` (even when every request
+    /// 304'd). This is the per-repo "last checked" time — distinct from a PR's
+    /// GitHub activity time.
+    func markRepoChecked(repoID: String, date: Date) throws {
+        let ctx = modelContext
+        guard let repo = repoByID(repoID, ctx: ctx) else { return }
+        repo.lastFetchedAt = date
         try ctx.save()
     }
 
@@ -202,6 +274,7 @@ actor SyncActor {
         for c in pr.reviewComments where !seenIDs.contains(c.id) {
             ctx.delete(c)
         }
+        refreshActivity(pr)
         try ctx.save()
     }
 
@@ -245,7 +318,10 @@ actor SyncActor {
                 // isSeen preserved deliberately
             } else {
                 let e = TimelineEvent(
-                    id: id, type: typ, at: effectiveAt ?? .now,
+                    // Fall back to the PR's open time (never `.now`) when GitHub
+                    // gives an event no date — a `.now` fallback would render a
+                    // spurious "just now" and poison the derived activity time.
+                    id: id, type: typ, at: effectiveAt ?? pr.openedAt,
                     pullRequest: pr, actor: actorUser,
                     body: effectiveBody, sha: dto.sha, reviewState: revState, isSeen: false)
                 e.reviewID = parentReviewID
@@ -256,11 +332,14 @@ actor SyncActor {
         for e in pr.timeline where !seenIDs.contains(e.id) {
             ctx.delete(e)
         }
+        refreshActivity(pr)
         try ctx.save()
     }
 
-    /// Patches diffstat-only fields on a PR from a detail-endpoint fetch.
-    /// Other fields are not touched (they're owned by the list-fetch upsert).
+    /// Patches fields on a PR from a single-PR detail fetch: diffstat, mergeable,
+    /// and GitHub's `updated_at`. Capturing `updated_at` here (the list path is
+    /// no longer the only writer) is what keeps "Last activity" fresh while a PR
+    /// is open in the detail view, instead of frozen until the next full list sync.
     func updatePRStatistics(prID: String, dto: PullRequestDTO) throws {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
@@ -270,6 +349,8 @@ actor SyncActor {
         if let ms = dto.mergeable_state {
             pr.mergeable = Mergeable(rawValue: ms.uppercased()) ?? pr.mergeable
         }
+        if dto.updated_at > pr.updatedAt { pr.updatedAt = dto.updated_at }
+        refreshActivity(pr)
         try ctx.save()
     }
 

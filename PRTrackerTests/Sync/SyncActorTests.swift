@@ -125,6 +125,108 @@ import SwiftData
         #expect(pr?.lastFetchedAt != nil)
     }
 
+    // MARK: - Derived activity time
+
+    /// The sample DTO's `updated_at`; the baseline the derived activity time
+    /// falls back to when nothing newer exists.
+    private var sampleUpdatedAt: Date {
+        let d = ISO8601DateFormatter()
+        return d.date(from: "2026-04-23T10:47:00Z")!
+    }
+
+    @Test func upsertSeedsActivityFromUpdatedAt() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastActivityAt == sampleUpdatedAt)
+    }
+
+    @Test func newerTimelineEventAdvancesActivity() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        // An inline comment arriving after updated_at — the exact case GitHub's
+        // updated_at fails to reflect. Activity must move to the comment time.
+        let commentAt = Date(timeIntervalSince1970: 1_800_000_000)  // ~2027, after updated_at
+        try await actor.upsertTimeline(prID: "PR_5107", items: [
+            TimelineItemDTO(event: "commented", id: 1, node_id: "TE_1",
+                            actor: UserDTO(login: "iris", name: nil, avatar_url: nil),
+                            created_at: commentAt, body: "late comment", sha: nil, state: nil)
+        ])
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastActivityAt == commentAt)
+    }
+
+    @Test func olderTimelineEventDoesNotRegressActivity() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        try await actor.upsertTimeline(prID: "PR_5107", items: [
+            TimelineItemDTO(event: "commented", id: 1, node_id: "TE_1",
+                            actor: UserDTO(login: "iris", name: nil, avatar_url: nil),
+                            created_at: Date(timeIntervalSince1970: 1_700_000_000),  // 2023, before updated_at
+                            body: "old", sha: nil, state: nil)
+        ])
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.lastActivityAt == sampleUpdatedAt)
+    }
+
+    @Test func detailUpdateAdvancesActivity() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        // A detail fetch carrying a newer updated_at must bump both updatedAt and
+        // the derived activity — the fix that keeps an open PR's "Last activity"
+        // fresh without waiting for the next full list sync.
+        let laterJSON = """
+        {"node_id":"PR_5107","number":5107,"title":"T","state":"open","draft":false,
+         "merged_at":null,"created_at":"2026-04-21T09:14:00Z","updated_at":"2026-05-01T00:00:00Z",
+         "user":{"login":"alex.chen","id":1,"name":null,"avatar_url":null},
+         "head":{"ref":"alex/x","sha":"d4f91ee"},"base":{"ref":"main","sha":"deadbeef"},
+         "additions":9,"deletions":2,"changed_files":3,"mergeable_state":"clean","labels":[],"requested_reviewers":[]}
+        """
+        let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
+        let detail = try dec.decode(PullRequestDTO.self, from: laterJSON.data(using: .utf8)!)
+        try await actor.updatePRStatistics(prID: "PR_5107", dto: detail)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        let expected = ISO8601DateFormatter().date(from: "2026-05-01T00:00:00Z")!
+        #expect(pr?.updatedAt == expected)
+        #expect(pr?.lastActivityAt == expected)
+        #expect(pr?.changedFiles == 3)
+    }
+
+    @Test func backfillFillsEpochActivity() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        // Simulate a row migrated from before the field existed.
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        pr.lastActivityAt = Date(timeIntervalSince1970: 0)
+        try ctx.save()
+
+        try await actor.backfillActivityIfNeeded()
+        let refreshed = try ModelContext(container).fetch(FetchDescriptor<PullRequest>()).first
+        #expect(refreshed?.lastActivityAt == sampleUpdatedAt)
+    }
+
+    @Test func reconcileOpenFalseDoesNotCloseAbsentPRs() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        // A recently-merged (partial) batch that omits the open PR must NOT close
+        // it — only an authoritative open list (reconcileOpen: true) may.
+        try await actor.upsertPullRequests([], inRepoID: repo.id, reconcileOpen: false)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first
+        #expect(pr?.state == .open)
+    }
+
     @Test func setLastFetchedUpdatesPullRequest() async throws {
         let (container, repo) = try setup()
         let actor = SyncActor(modelContainer: container)

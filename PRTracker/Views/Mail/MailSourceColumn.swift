@@ -52,7 +52,7 @@ struct MailSourceColumn: View {
                     .font(.system(size: 9)).foregroundStyle(Tokens.changes)
                 Text(syncErrorText(err)).microText().foregroundStyle(Tokens.changes)
             } else if let last = coordinator.lastSyncAt {
-                Text("Updated \(RelativeTimeFormatter.short(last))").microText().foregroundStyle(Tokens.textMuted)
+                RelativeTimeText(date: last, prefix: "Updated ").microText().foregroundStyle(Tokens.textMuted)
             } else {
                 Text("Not yet synced").microText().foregroundStyle(Tokens.textFaint)
             }

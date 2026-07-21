@@ -6,7 +6,7 @@ struct MailListView: View {
     // Enabled-repo PRs only, filtered at the fetch. Excludes disabled and
     // cascade-deleted repos' PRs without dereferencing `repo` in the body.
     @Query(filter: #Predicate<PullRequest> { $0.repo.isEnabled },
-           sort: [SortDescriptor(\PullRequest.updatedAt, order: .reverse)])
+           sort: [SortDescriptor(\PullRequest.lastActivityAt, order: .reverse)])
     private var prs: [PullRequest]
     @Query private var viewerStates: [ViewerState]
 
@@ -86,7 +86,7 @@ struct MailListView: View {
                let aw = (meta[a.id]?.ball ?? false) ? 0 : 1
                let bw = (meta[b.id]?.ball ?? false) ? 0 : 1
                if aw != bw { return aw < bw }
-               return a.updatedAt > b.updatedAt
+               return a.lastActivityAt > b.lastActivityAt
            }
     }
 

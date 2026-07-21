@@ -73,7 +73,7 @@ struct TimelineEventRow: View {
                     reviewPill(r)
                 }
                 Spacer()
-                Text(RelativeTimeFormatter.short(event.at))
+                RelativeTimeText(date: event.at)
                     .microText()
                     .foregroundStyle(Tokens.textFaint)
             }
@@ -115,7 +115,7 @@ struct TimelineEventRow: View {
                     .foregroundStyle(Tokens.textFaint)
             }
             Spacer()
-            Text(RelativeTimeFormatter.short(event.at))
+            RelativeTimeText(date: event.at)
                 .microText()
                 .foregroundStyle(Tokens.textFaint)
         }
