@@ -9,14 +9,20 @@ struct DetailRightRail: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 section("Last activity") {
-                    Text(RelativeTimeFormatter.short(pr.updatedAt))
+                    RelativeTimeText(date: pr.lastActivityAt)
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.textMuted)
                 }
                 section("Last checked") {
-                    Text(pr.lastFetchedAt.map { RelativeTimeFormatter.short($0) } ?? "Never")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Tokens.textMuted)
+                    Group {
+                        if let fetched = pr.lastFetchedAt {
+                            RelativeTimeText(date: fetched)
+                        } else {
+                            Text("Never")
+                        }
+                    }
+                    .font(.system(size: 12))
+                    .foregroundStyle(Tokens.textMuted)
                 }
                 section("Repository") {
                     Text(pr.repo.id)
@@ -55,7 +61,7 @@ struct DetailRightRail: View {
                     }.font(.system(size: 12))
                 }
                 section("Opened") {
-                    Text(RelativeTimeFormatter.short(pr.openedAt))
+                    RelativeTimeText(date: pr.openedAt)
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.textMuted)
                 }

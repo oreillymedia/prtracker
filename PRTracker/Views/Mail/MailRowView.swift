@@ -93,7 +93,7 @@ struct MailRowView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(RelativeTimeFormatter.short(pr.updatedAt))
+            RelativeTimeText(date: pr.lastActivityAt)
                 .font(.system(size: 10.5).monospacedDigit())
                 .foregroundStyle(faintColor)
                 .lineLimit(1)

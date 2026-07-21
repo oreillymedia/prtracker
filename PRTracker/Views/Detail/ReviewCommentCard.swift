@@ -53,7 +53,7 @@ struct ReviewCommentCard: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Tokens.text)
             Spacer()
-            Text(RelativeTimeFormatter.short(comment.createdAt))
+            RelativeTimeText(date: comment.createdAt)
                 .font(.system(size: 10.5))
                 .foregroundStyle(Tokens.textFaint)
         }

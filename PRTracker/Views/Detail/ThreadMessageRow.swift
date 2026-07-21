@@ -46,7 +46,7 @@ struct ThreadMessageRow: View {
             if message.isMine { youTag }
             if message.isNew && !message.isDone { newTag }
             Spacer(minLength: 0)
-            Text(RelativeTimeFormatter.short(message.createdAt))
+            RelativeTimeText(date: message.createdAt)
                 .font(.system(size: 10.5).monospacedDigit())
                 .foregroundStyle(Tokens.textFaint)
         }

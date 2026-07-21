@@ -15,6 +15,14 @@ final class PullRequest {
     var changedFiles: Int
     var openedAt: Date
     var updatedAt: Date
+    /// The most recent moment *anything* happened on this PR — derived locally as
+    /// the max of GitHub's `updated_at`, the newest timeline event, and the newest
+    /// review comment. `updated_at` alone is unreliable (GitHub doesn't bump it for
+    /// inline review comments), so this is the field the UI sorts and labels
+    /// "Last activity" by. Recomputed on every upsert; see `SyncActor.refreshActivity`.
+    /// Defaulted to the epoch so a lightweight migration can add it; `backfillActivityIfNeeded`
+    /// fills existing rows at first launch.
+    var lastActivityAt: Date = Date(timeIntervalSince1970: 0)
     var mergedAt: Date?
     var reviewStateRaw: String?
     var mergeableRaw: String
@@ -83,6 +91,7 @@ final class PullRequest {
         self.headSha = headSha
         self.additions = 0; self.deletions = 0; self.changedFiles = 0
         self.openedAt = openedAt; self.updatedAt = updatedAt
+        self.lastActivityAt = updatedAt
         self.mergeableRaw = Mergeable.unknown.rawValue
         self.ciPass = 0; self.ciFail = 0; self.ciRunning = 0; self.ciPending = 0; self.ciTotal = 0
         self.author = author

@@ -76,11 +76,16 @@ actor GitHubClient {
 }
 
 extension GitHubClient {
-    func listOpenPRs(repo: RepoRef) async throws -> [PullRequestDTO] {
-        try await send(Endpoints.pulls(repo, state: "open", perPage: 50), as: [PullRequestDTO].self)
+    // The list endpoints are conditional too: a repo with no list-level change
+    // 304s, saving a full 50-item payload (and its rate-limit cost) every cycle.
+    // `nil` == 304; the caller keeps the stored PR set. Because a 304 open-list
+    // is NOT an authoritative "these are the only open PRs" signal, the caller
+    // must not run close-reconciliation against a nil result.
+    func listOpenPRs(repo: RepoRef) async throws -> [PullRequestDTO]? {
+        try await sendConditional(Endpoints.pulls(repo, state: "open", perPage: 50), as: [PullRequestDTO].self)
     }
-    func listRecentlyMerged(repo: RepoRef, limit: Int) async throws -> [PullRequestDTO] {
-        try await send(Endpoints.pulls(repo, state: "closed", perPage: limit), as: [PullRequestDTO].self)
+    func listRecentlyMerged(repo: RepoRef, limit: Int) async throws -> [PullRequestDTO]? {
+        try await sendConditional(Endpoints.pulls(repo, state: "closed", perPage: limit), as: [PullRequestDTO].self)
     }
     // Per-PR polling endpoints are conditional: they return `nil` on a 304 so
     // the caller keeps existing data. These are the calls that multiply by the

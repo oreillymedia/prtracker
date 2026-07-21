@@ -7,15 +7,9 @@ struct PRDetailView: View {
     @Query private var viewerStates: [ViewerState]
     let pr: PullRequest
     let viewer: User?
-    let client: GitHubClient
+    let coordinator: SyncCoordinator
     let syncActor: SyncActor
 
-    /// How often the open PR re-fetches its threads so conversation updates
-    /// appear without a manual refresh.
-    private let detailRefreshInterval: Duration = .seconds(60)
-
-    @State private var loadError: GitHubError?
-    @State private var isLoading: Bool = false
     @State private var inspectorPresented: Bool = true
 
     private var viewerLogin: String { viewerStates.first?.viewer?.login ?? "" }
@@ -30,10 +24,10 @@ struct PRDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe, isUpdating: isLoading)
+            MailDetailHeader(pr: pr, todoCounts: todoCounts, ciFailedForMe: ciFailedForMe, isUpdating: coordinator.isRefreshingDetail)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let loadError {
+                    if let loadError = coordinator.lastDetailError {
                         Text("Couldn't load timeline: \(String(describing: loadError)). Click refresh to retry.")
                             .foregroundStyle(Tokens.changes).padding(8)
                             .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
@@ -50,11 +44,11 @@ struct PRDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button { Task { await loadTimeline() } } label: {
+                Button { coordinator.refreshSelectedPRNow() } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh")
-                .disabled(isLoading)
+                .disabled(coordinator.isRefreshingDetail)
 
                 Button {
                     if let url = URL(string: "https://github.com/\(pr.repo.id)/pull/\(pr.number)") {
@@ -74,57 +68,15 @@ struct PRDetailView: View {
         }
         .task(id: pr.id) {
             // Debounce: when sweeping selection quickly through the source list,
-            // each transient selection would otherwise fire 6 concurrent network
-            // requests. .task(id:) cancels this when the selection moves on, so
-            // only a settled selection (held ~300ms) actually loads. The toolbar
-            // refresh button stays immediate.
+            // registering each transient PR would fire a burst of fetches.
+            // .task(id:) cancels this when the selection moves on, so only a
+            // settled selection (held ~300ms) becomes the coordinator's priority
+            // PR. The coordinator then keeps it fresh on its own interval and
+            // reflects progress via `isRefreshingDetail`.
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            await loadTimeline()
-            // Keep the open PR fresh: re-load on an interval until the selection
-            // changes (which cancels this task).
-            while !Task.isCancelled {
-                try? await Task.sleep(for: detailRefreshInterval)
-                guard !Task.isCancelled else { return }
-                await loadTimeline()
-            }
+            coordinator.selectPR(prID: pr.id, ref: RepoRef(owner: pr.repo.owner, name: pr.repo.name), number: pr.number)
         }
-    }
-
-    private func loadTimeline() async {
-        if isLoading { return }
-        isLoading = true
-        defer { isLoading = false }
-        let ref = RepoRef(owner: pr.repo.owner, name: pr.repo.name)
-        let number = pr.number
-        let prID = pr.id
-        let headSha = pr.headSha
-        do {
-            async let t = client.timeline(repo: ref, number: number)
-            async let r = client.reviews(repo: ref, number: number)
-            async let d = client.pullRequestDetail(repo: ref, number: number)
-            async let ck = client.checkRuns(repo: ref, ref: headSha)
-            async let rc = client.reviewComments(repo: ref, number: number)
-            // Comments come from the timeline ("commented" events) — the separate
-            // issue-comments endpoint was fetched and discarded.
-            // nil == 304 Not Modified: keep the stored data and skip that upsert.
-            let (tItems, reviewDTOs, detail, checks, reviewComments) = try await (t, r, d, ck, rc)
-            if let tItems { try await syncActor.upsertTimeline(prID: prID, items: tItems) }
-            if let reviewDTOs { try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs) }
-            if let reviewComments { try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments) }
-            if let detail { try await syncActor.updatePRStatistics(prID: prID, dto: detail) }
-            if let checks { try await syncActor.upsertCIChecks(prID: prID, dto: checks) }
-            try await syncActor.setLastFetched(prID: prID, date: .now)
-            loadError = nil
-        } catch is CancellationError {
-            // .task replaced before we finished; new task will reload — don't surface.
-        } catch let e as GitHubError {
-            // Some networking layers wrap cancellation as a `.network(message: "cancelled")`.
-            if case .network(let msg) = e, msg.lowercased().contains("cancel") { return }
-            loadError = e
-        } catch {
-            if error.localizedDescription.lowercased().contains("cancel") { return }
-            loadError = .network(message: error.localizedDescription)
-        }
+        .onDisappear { coordinator.clearPRSelection() }
     }
 }

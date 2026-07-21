@@ -50,9 +50,9 @@ extension GitHubClientTests {
                 url: "https://api.github.com/repos/oreilly/spark-ios/pulls?state=open&sort=updated&direction=desc&per_page=50",
                 status: 200, body: fixture("pulls_open"))
             let prs = try await makeClient().listOpenPRs(repo: RepoRef(owner: "oreilly", name: "spark-ios"))
-            #expect(prs.count == 1)
-            #expect(prs[0].number == 5107)
-            #expect(prs[0].title.contains("Fetch badge"))
+            #expect(prs?.count == 1)
+            #expect(prs?[0].number == 5107)
+            #expect(prs?[0].title.contains("Fetch badge") == true)
         }
     }
 

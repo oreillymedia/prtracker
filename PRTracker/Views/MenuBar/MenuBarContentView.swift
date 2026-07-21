@@ -22,8 +22,14 @@ struct MenuBarContentView: View {
             HStack {
                 Text(repoTitle).font(.system(size: 12).weight(.bold))
                 Spacer()
-                Text(coordinator.lastSyncAt.map { "Updated \(RelativeTimeFormatter.short($0))" } ?? "—")
-                    .microText().foregroundStyle(Tokens.textMuted)
+                Group {
+                    if let last = coordinator.lastSyncAt {
+                        RelativeTimeText(date: last, prefix: "Updated ")
+                    } else {
+                        Text("—")
+                    }
+                }
+                .microText().foregroundStyle(Tokens.textMuted)
             }.padding(12)
             Divider()
 
@@ -85,7 +91,7 @@ struct MenuBarContentView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(RelativeTimeFormatter.short(pr.updatedAt))
+                    RelativeTimeText(date: pr.lastActivityAt)
                         .font(.system(size: 10).monospacedDigit())
                         .foregroundStyle(Tokens.textFaint)
                 }

@@ -56,6 +56,9 @@ struct RootView: View {
                 if let minutes = viewerStates.first?.refreshIntervalMinutes {
                     coordinator.setIntervals(foregroundMinutes: minutes)
                 }
+                // Fill in derived activity times for rows migrated from before the
+                // field existed, so list ordering is correct on the very first frame.
+                try? await coordinator.syncActorForView.backfillActivityIfNeeded()
                 coordinator.start()
                 await firstLaunchAuthorizationIfNeeded()
             }
@@ -98,7 +101,7 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                PRDetailView(pr: pr, viewer: viewer, client: coordinator.clientForView, syncActor: coordinator.syncActorForView)
+                PRDetailView(pr: pr, viewer: viewer, coordinator: coordinator, syncActor: coordinator.syncActorForView)
             } else {
                 MailEmptyDetailView()
             }

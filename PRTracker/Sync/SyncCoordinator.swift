@@ -9,18 +9,41 @@ final class SyncCoordinator {
     private let modelContainer: ModelContainer
 
     var isSyncing: Bool = false
+    /// Time of the last pass in which *every* enabled repo synced successfully.
+    /// Only a full success advances it, so a persistently-failing repo can't be
+    /// masked by a healthy one showing a fresh "Updated just now".
     var lastSyncAt: Date?
     var lastSyncError: GitHubError?
     var notificationDispatcher: NotificationDispatcher?
     var badgeController: BadgeController?
 
+    // MARK: Priority lane (the PR currently open in the detail view)
+    /// True while the priority lane is fetching the selected PR. Drives the
+    /// detail view's inline spinner.
+    var isRefreshingDetail: Bool = false
+    /// Last error from a priority-lane fetch, surfaced in the detail view.
+    var lastDetailError: GitHubError?
+
     private var task: Task<Void, Never>?
+    private var priorityTask: Task<Void, Never>?
     private var foregroundIntervalSec: TimeInterval = 120
     private var backgroundIntervalSec: TimeInterval = 300
+    /// How often the open PR's threads/CI re-poll. Faster than the whole-repo
+    /// loop so conversation updates on the PR you're reading appear promptly,
+    /// but routed through the same SyncActor upserts so list and detail agree.
+    private let priorityIntervalSec: TimeInterval = 30
     private var isBackgroundMode = false
+    /// The PR currently open in the detail view, if any.
+    private var prioritySelection: PrioritySelection?
     /// Set when a refresh is requested while one is already running, so the
     /// in-flight pass is followed by one more instead of being silently dropped.
     private var pendingRefresh = false
+
+    struct PrioritySelection: Sendable, Equatable {
+        let prID: String
+        let ref: RepoRef
+        let number: Int
+    }
 
     init(client: GitHubClient, syncActor: SyncActor, modelContainer: ModelContainer) {
         self.client = client
@@ -36,10 +59,13 @@ final class SyncCoordinator {
     func start() {
         task?.cancel()
         task = Task { [weak self] in await self?.loop() }
+        priorityTask?.cancel()
+        priorityTask = Task { [weak self] in await self?.priorityLoop() }
     }
 
     func stop() {
         task?.cancel(); task = nil
+        priorityTask?.cancel(); priorityTask = nil
     }
 
     private func loop() async {
@@ -71,7 +97,7 @@ final class SyncCoordinator {
         let enabled = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
         if enabled.isEmpty { return }
 
-        var anySucceeded = false
+        var allSucceeded = true
         for repo in enabled {
             let ref = RepoRef(owner: repo.owner, name: repo.name)
             // A repo needs a silent baseline (record current state without
@@ -81,14 +107,17 @@ final class SyncCoordinator {
             let needsBaseline = repo.lastFetchedAt == nil || !repo.didBaselineThreads
             do {
                 try await refreshRepo(ref: ref, repoID: repo.id, needsBaseline: needsBaseline)
-                anySucceeded = true
             } catch let e as GitHubError {
                 lastSyncError = e
+                allSucceeded = false
             } catch {
                 lastSyncError = .network(message: error.localizedDescription)
+                allSucceeded = false
             }
         }
-        if anySucceeded { lastSyncAt = .now }
+        // Advance the global "Updated" time only when the whole set refreshed —
+        // an honest "everything is at least this fresh" signal.
+        if allSucceeded { lastSyncAt = .now }
     }
 
     /// Sync a single repo: fetch its open + recently-merged PRs, upsert them,
@@ -103,11 +132,28 @@ final class SyncCoordinator {
     /// ETags make the unchanged ones cheap (a 304 doesn't count against the rate
     /// limit), so correctness wins without a real cost.
     private func refreshRepo(ref: RepoRef, repoID: String, needsBaseline: Bool) async throws {
-        async let openPRs = client.listOpenPRs(repo: ref)
-        async let recent = client.listRecentlyMerged(repo: ref, limit: 20)
-        let (open, closed) = try await (openPRs, recent)
-        let allPRs = open + closed
-        try await syncActor.upsertPullRequests(allPRs, inRepoID: repoID)
+        async let openReq = client.listOpenPRs(repo: ref)
+        async let recentReq = client.listRecentlyMerged(repo: ref, limit: 20)
+        // nil == 304: the list representation is unchanged.
+        let (openDTOs, closedDTOs) = try await (openReq, recentReq)
+
+        // Only a fresh open list is authoritative enough to close PRs it omits.
+        if let openDTOs {
+            try await syncActor.upsertPullRequests(openDTOs, inRepoID: repoID, reconcileOpen: true)
+        }
+        if let closedDTOs {
+            try await syncActor.upsertPullRequests(closedDTOs, inRepoID: repoID, reconcileOpen: false)
+        }
+
+        // Poll threads/CI for every open PR. When the open list 304'd we don't
+        // have fresh DTOs, so fall back to the stored open set — inline comments
+        // change without moving the list ETag, so per-PR polling must continue.
+        let targets: [PRPollTarget]
+        if let openDTOs {
+            targets = openDTOs.map { PRPollTarget(nodeID: $0.node_id, number: $0.number, headSha: $0.head.sha) }
+        } else {
+            targets = await syncActor.openPRPollTargets(repoID: repoID)
+        }
 
         // Each task reports whether all of its fetches succeeded, so the baseline
         // pass can tell whether it saw the repo's full current state.
@@ -115,22 +161,23 @@ final class SyncCoordinator {
             let semaphore = AsyncSemaphore(value: 5)
             let actorRef = syncActor
             let clientRef = client
-            for pr in open {
+            for target in targets {
                 group.addTask {
                     await semaphore.wait()
                     defer { Task { await semaphore.signal() } }
                     do {
                         // nil == 304 Not Modified: keep stored data, skip upsert.
-                        if let dto = try await clientRef.checkRuns(repo: ref, ref: pr.head.sha) {
-                            try await actorRef.upsertCIChecks(prID: pr.node_id, dto: dto)
+                        if !target.headSha.isEmpty,
+                           let dto = try await clientRef.checkRuns(repo: ref, ref: target.headSha) {
+                            try await actorRef.upsertCIChecks(prID: target.nodeID, dto: dto)
                         }
-                        async let t = clientRef.timeline(repo: ref, number: pr.number)
-                        async let r = clientRef.reviews(repo: ref, number: pr.number)
-                        async let rc = clientRef.reviewComments(repo: ref, number: pr.number)
+                        async let t = clientRef.timeline(repo: ref, number: target.number)
+                        async let r = clientRef.reviews(repo: ref, number: target.number)
+                        async let rc = clientRef.reviewComments(repo: ref, number: target.number)
                         let (tItems, reviewDTOs, reviewComments) = try await (t, r, rc)
-                        if let tItems { try await actorRef.upsertTimeline(prID: pr.node_id, items: tItems) }
-                        if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: pr.node_id, fromReviews: reviewDTOs) }
-                        if let reviewComments { try await actorRef.upsertReviewComments(prID: pr.node_id, fromDTOs: reviewComments) }
+                        if let tItems { try await actorRef.upsertTimeline(prID: target.nodeID, items: tItems) }
+                        if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: target.nodeID, fromReviews: reviewDTOs) }
+                        if let reviewComments { try await actorRef.upsertReviewComments(prID: target.nodeID, fromDTOs: reviewComments) }
                         return true
                     } catch {
                         // Per-PR failure; toolbar surfaces aggregate errors only.
@@ -142,6 +189,10 @@ final class SyncCoordinator {
             for await ok in group where !ok { all = false }
             return all
         }
+
+        // Record the successful check even when every request 304'd, so the
+        // per-repo "last checked" time reflects reality.
+        if outcomes { try await syncActor.markRepoChecked(repoID: repoID, date: .now) }
 
         guard let d = notificationDispatcher else { return }
         if needsBaseline {
@@ -155,6 +206,80 @@ final class SyncCoordinator {
             }
         } else {
             await d.process(repoID: repoID)
+        }
+    }
+
+    // MARK: - Priority lane
+
+    /// Register the PR currently open in the detail view and refresh it now.
+    /// The priority loop then keeps it fresh on `priorityIntervalSec` until the
+    /// selection changes or clears. Routing this through `SyncActor` (same as the
+    /// whole-repo sync) is what keeps the list row and the open detail in sync.
+    func selectPR(prID: String, ref: RepoRef, number: Int) {
+        let sel = PrioritySelection(prID: prID, ref: ref, number: number)
+        guard sel != prioritySelection else { return }
+        prioritySelection = sel
+        Task { [weak self] in await self?.refreshPR(sel) }
+    }
+
+    func clearPRSelection() {
+        prioritySelection = nil
+    }
+
+    /// Manual "Refresh" button in the detail toolbar.
+    func refreshSelectedPRNow() {
+        guard let sel = prioritySelection else { return }
+        Task { [weak self] in await self?.refreshPR(sel) }
+    }
+
+    private func priorityLoop() async {
+        while !Task.isCancelled {
+            if let sel = prioritySelection { await refreshPR(sel) }
+            try? await Task.sleep(nanoseconds: UInt64(priorityIntervalSec * 1_000_000_000))
+        }
+    }
+
+    /// Fetch a single PR's threads/CI/detail and upsert them. Overlapping calls
+    /// (the loop tick racing the immediate refresh on selection) are coalesced by
+    /// the `isRefreshingDetail` guard — the upserts are idempotent, so skipping a
+    /// duplicate in-flight pass loses nothing.
+    private func refreshPR(_ sel: PrioritySelection) async {
+        if isRefreshingDetail { return }
+        isRefreshingDetail = true
+        defer { isRefreshingDetail = false }
+
+        // The head SHA moves as commits land, so read the current one from the
+        // store each time rather than capturing it at selection.
+        let ctx = ModelContext(modelContainer)
+        let prID = sel.prID
+        let headSha = (try? ctx.fetch(FetchDescriptor<PullRequest>(predicate: #Predicate { $0.id == prID })))?.first?.headSha ?? ""
+        let ref = sel.ref
+        do {
+            async let t = client.timeline(repo: ref, number: sel.number)
+            async let r = client.reviews(repo: ref, number: sel.number)
+            async let d = client.pullRequestDetail(repo: ref, number: sel.number)
+            async let rc = client.reviewComments(repo: ref, number: sel.number)
+            // nil == 304 Not Modified: keep the stored data, skip that upsert.
+            let (tItems, reviewDTOs, detail, reviewComments) = try await (t, r, d, rc)
+            if let tItems { try await syncActor.upsertTimeline(prID: prID, items: tItems) }
+            if let reviewDTOs { try await syncActor.upsertReviewerStates(prID: prID, fromReviews: reviewDTOs) }
+            if let reviewComments { try await syncActor.upsertReviewComments(prID: prID, fromDTOs: reviewComments) }
+            if let detail { try await syncActor.updatePRStatistics(prID: prID, dto: detail) }
+            // Checks key off the head SHA, so fetch them after we have it.
+            if !headSha.isEmpty, let checks = try await client.checkRuns(repo: ref, ref: headSha) {
+                try await syncActor.upsertCIChecks(prID: prID, dto: checks)
+            }
+            try await syncActor.setLastFetched(prID: prID, date: .now)
+            lastDetailError = nil
+        } catch is CancellationError {
+            // Selection moved on; the next task reloads. Don't surface.
+        } catch let e as GitHubError {
+            // Some networking layers wrap cancellation as a `.network` error.
+            if case .network(let msg) = e, msg.lowercased().contains("cancel") { return }
+            lastDetailError = e
+        } catch {
+            if error.localizedDescription.lowercased().contains("cancel") { return }
+            lastDetailError = .network(message: error.localizedDescription)
         }
     }
 
