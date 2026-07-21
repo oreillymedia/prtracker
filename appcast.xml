@@ -3,6 +3,14 @@
     <channel>
         <title>PRTracker</title>
         <item>
+            <title>0.6.0</title>
+            <pubDate>Tue, 21 Jul 2026 14:27:42 -0500</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.4</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/oreillymedia/prtracker/releases/download/v0.6.0/PRTracker-0.6.0.zip" length="3175277" type="application/octet-stream" sparkle:edSignature="A2lRDyO08xN1vF1k7O/BO0YMTgKGt9Mrc29CGRwWk7W9w1TXZ/i0257wbiezCVF7TJHYmsm1BcO0779tYbSzAQ==" />
+        </item>
+        <item>
             <title>0.5.2</title>
             <pubDate>Thu, 25 Jun 2026 10:51:38 -0500</pubDate>
             <sparkle:version>15</sparkle:version>
@@ -17,14 +25,6 @@
             <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.4</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/oreillymedia/prtracker/releases/download/v0.5.1/PRTracker-0.5.1.zip" length="3109206" type="application/octet-stream" sparkle:edSignature="K0pBVUvczT+iN08/hRA6HHARjV9LVNiFShIzVyRWMMk640M1z7kKwMLxlZuvBo9AJSUHw9RkhsN8MpxBU89wCA==" />
-        </item>
-        <item>
-            <title>0.5.0</title>
-            <pubDate>Wed, 17 Jun 2026 10:06:49 -0500</pubDate>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/oreillymedia/prtracker/releases/download/v0.5.0/PRTracker-0.5.0.zip" length="3102296" type="application/octet-stream" sparkle:edSignature="uTSozv5PqDfgkRQSiP/NacPj4Qk8AueLNdubvGvDMsq1UWPLem8YTq/bm3YIjpsAMMrnOUHpJVyX53Q9Rms7CA==" />
         </item>
     </channel>
 </rss>
