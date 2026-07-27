@@ -65,7 +65,10 @@ actor GitHubClient {
                let resetEpoch = TimeInterval(resetStr) {
                 throw GitHubError.rateLimited(resetAt: Date(timeIntervalSince1970: resetEpoch))
             }
-            throw GitHubError.network(message: "403 forbidden")
+            // A non-rate-limit 403 is an access problem (missing scope, org SSO
+            // not authorized, unapproved fine-grained PAT) — distinct from a
+            // connectivity failure, so callers can say so accurately.
+            throw GitHubError.forbidden
         default: throw GitHubError.network(message: "HTTP \(http.statusCode)")
         }
     }

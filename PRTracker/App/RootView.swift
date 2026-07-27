@@ -119,11 +119,9 @@ struct MainView: View {
         }
         .onChange(of: appState.showReconfigure) { _, on in
             guard on else { return }
-            if repos.isEmpty {
-                appState.showReconfigure = false   // nothing to reconfigure yet
-            } else {
-                presentOnboarding(.reconfigure)
-            }
+            // Always open setup: first-run when nothing is configured yet (so a
+            // cancelled first-run is reachable again), reconfigure otherwise.
+            presentOnboarding(repos.isEmpty ? .firstRun : .reconfigure)
         }
         .sheet(isPresented: $showOnboarding, onDismiss: { appState.showReconfigure = false }) {
             OnboardingView(mode: onboardingMode, keychain: keychain, client: client, coordinator: coordinator)

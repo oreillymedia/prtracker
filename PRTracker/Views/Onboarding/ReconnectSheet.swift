@@ -86,7 +86,7 @@ struct ReconnectSheet: View {
         for repo in repos {
             do {
                 _ = try await client.repository(RepoRef(owner: repo.owner, name: repo.name))
-            } catch let e as GitHubError where e == .repoNotFound || e == .unauthorized {
+            } catch let e as GitHubError where e == .repoNotFound || e == .unauthorized || e == .forbidden {
                 return "\(repo.owner)/\(repo.name)"
             }
         }

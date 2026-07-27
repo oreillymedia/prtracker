@@ -67,6 +67,18 @@ extension GitHubClientTests {
         }
     }
 
+    @Test func forbiddenWithoutRateLimitThrowsForbidden() async throws {
+        try await StubURLProtocol.withExclusiveStubs {
+            // 403 with no rate-limit headers: an access problem (missing scope,
+            // SSO), not throttling and not a connectivity failure.
+            StubURLProtocol.register(url: "https://api.github.com/user", status: 403, body: Data())
+            do { _ = try await makeClient().validate(); Issue.record("expected throw") }
+            catch let e as GitHubError {
+                #expect(e == .forbidden)
+            } catch { Issue.record("wrong type: \(error)") }
+        }
+    }
+
     @Test func rateLimitedThrows() async throws {
         try await StubURLProtocol.withExclusiveStubs {
             StubURLProtocol.register(

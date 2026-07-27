@@ -57,7 +57,11 @@ struct OnboardingView: View {
 
     private var navBar: some View {
         HStack {
-            if mode == .reconfigure { Button("Cancel") { dismiss() } }
+            // Cancel is available in both modes so the user is never trapped —
+            // e.g. stuck at the repositories step when their token can't reach a
+            // repo. First-run's interactive dismissal stays disabled, so this
+            // button is the deliberate exit.
+            Button("Cancel") { dismiss() }
             if model.step != .welcome {
                 Button("Back") { if let prev = OnboardingModel.Step(rawValue: model.step.rawValue - 1) { model.step = prev } }
             }
@@ -118,9 +122,11 @@ struct OnboardingView: View {
         } catch GitHubError.repoNotFound {
             model.addError = "Couldn't find \(ref.slug), or your token can't access it."
         } catch GitHubError.unauthorized {
-            model.addError = "Your token can't access \(ref.slug)."
+            model.addError = "Your token was rejected. Check it hasn't expired."
+        } catch GitHubError.forbidden {
+            model.addError = "GitHub denied access to \(ref.slug). Your token may lack the required scope, or need SSO authorization for that organization."
         } catch {
-            model.addError = "Couldn't reach GitHub. Check your connection and try again."
+            model.addError = "Couldn't verify \(ref.slug). Check your connection and try again."
         }
     }
 
