@@ -14,6 +14,12 @@ final class SyncCoordinator {
     /// masked by a healthy one showing a fresh "Updated just now".
     var lastSyncAt: Date?
     var lastSyncError: GitHubError?
+    /// Sticky "the stored token is dead" state, set on a GitHub 401. Unlike
+    /// `lastSyncError` (transient — network, decoding, rate limit) a 401 will
+    /// never resolve by retrying, so it's modeled separately: the sync loops
+    /// pause while it's set, and it clears only when a fresh token validates via
+    /// `reconnected()`. The main window surfaces it as a Reconnect banner.
+    var needsReauth: Bool = false
     var notificationDispatcher: NotificationDispatcher?
     var badgeController: BadgeController?
 
@@ -76,7 +82,20 @@ final class SyncCoordinator {
         }
     }
 
+    /// Called after the user validates a fresh token in the Reconnect sheet.
+    /// Clears the sticky reauth state and any stale error, then kicks an
+    /// immediate sync so the paused loop doesn't idle a full interval first.
+    func reconnected() {
+        needsReauth = false
+        lastSyncError = nil
+        lastDetailError = nil
+        Task { [weak self] in await self?.refresh() }
+    }
+
     func refresh() async {
+        // A dead token can't succeed; the loops keep ticking but do no work
+        // until the user reconnects (which flips this off before calling us).
+        if needsReauth { return }
         // Coalesce a refresh requested mid-sync into a single follow-up pass
         // rather than dropping it — a manual "Refresh now" during a background
         // cycle should still take effect.
@@ -108,7 +127,10 @@ final class SyncCoordinator {
             do {
                 try await refreshRepo(ref: ref, repoID: repo.id, needsBaseline: needsBaseline)
             } catch let e as GitHubError {
-                lastSyncError = e
+                // A 401 is terminal, not transient: flag the dead token so the
+                // loop pauses and the banner appears, rather than logging it as
+                // just another "sync failed" that keeps retrying every cycle.
+                if e == .unauthorized { needsReauth = true } else { lastSyncError = e }
                 allSucceeded = false
             } catch {
                 lastSyncError = .network(message: error.localizedDescription)
@@ -234,7 +256,7 @@ final class SyncCoordinator {
 
     private func priorityLoop() async {
         while !Task.isCancelled {
-            if let sel = prioritySelection { await refreshPR(sel) }
+            if let sel = prioritySelection, !needsReauth { await refreshPR(sel) }
             try? await Task.sleep(nanoseconds: UInt64(priorityIntervalSec * 1_000_000_000))
         }
     }
@@ -276,7 +298,9 @@ final class SyncCoordinator {
         } catch let e as GitHubError {
             // Some networking layers wrap cancellation as a `.network` error.
             if case .network(let msg) = e, msg.lowercased().contains("cancel") { return }
-            lastDetailError = e
+            // A 401 here means the same dead token — hand it to the reauth
+            // banner rather than the detail view's transient-error line.
+            if e == .unauthorized { needsReauth = true } else { lastDetailError = e }
         } catch {
             if error.localizedDescription.lowercased().contains("cancel") { return }
             lastDetailError = .network(message: error.localizedDescription)

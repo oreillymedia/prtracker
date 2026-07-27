@@ -91,19 +91,23 @@ struct MainView: View {
 
     @State private var showOnboarding = false
     @State private var onboardingMode: OnboardingModel.Mode = .firstRun
+    @State private var showReconnect = false
 
     var body: some View {
         @Bindable var appState = appState
         let viewer = viewerStates.first?.viewer
 
-        NavigationSplitView {
-            MailSourceColumn(coordinator: coordinator, onOpenSettings: onOpenSettings)
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
-        } detail: {
-            if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
-                PRDetailView(pr: pr, viewer: viewer, coordinator: coordinator, syncActor: coordinator.syncActorForView)
-            } else {
-                MailEmptyDetailView()
+        VStack(spacing: 0) {
+            if coordinator.needsReauth { reauthBanner }
+            NavigationSplitView {
+                MailSourceColumn(coordinator: coordinator, onOpenSettings: onOpenSettings)
+                    .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+            } detail: {
+                if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
+                    PRDetailView(pr: pr, viewer: viewer, coordinator: coordinator, syncActor: coordinator.syncActorForView)
+                } else {
+                    MailEmptyDetailView()
+                }
             }
         }
         // First-run onboarding presents automatically when no repos are
@@ -130,6 +134,30 @@ struct MainView: View {
                 .modelContainer(coordinator.modelContainerForView)
                 .interactiveDismissDisabled(onboardingMode == .firstRun)
         }
+        .sheet(isPresented: $showReconnect) {
+            ReconnectSheet(keychain: keychain, client: client, coordinator: coordinator)
+        }
+    }
+
+    /// Full-width banner shown when the stored token is dead. Syncing is paused
+    /// until the user pastes a working token via the Reconnect sheet.
+    private var reauthBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 13))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("GitHub sync paused").font(.system(size: 12, weight: .semibold))
+                Text("Your access token expired or was revoked.").font(.system(size: 11)).opacity(0.9)
+            }
+            Spacer()
+            Button("Reconnect") { showReconnect = true }
+                .controlSize(.small)
+                .tint(.white)
+                .foregroundStyle(Tokens.changes)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Tokens.changes)
     }
 
     private func presentOnboarding(_ mode: OnboardingModel.Mode) {
