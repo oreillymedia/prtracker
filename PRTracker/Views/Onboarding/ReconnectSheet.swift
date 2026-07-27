@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Lightweight re-authentication shown when the stored token expires or is
 /// revoked (a GitHub 401). Just a token field and a validate button — far
@@ -59,11 +60,36 @@ struct ReconnectSheet: View {
         keychain.save(trimmed)
         do {
             _ = try await client.validate()
+            // /user only proves the token authenticates. Verify it can actually
+            // reach the configured repos too — GitHub returns 404 for a private
+            // repo a token can't see, which would otherwise clear the banner and
+            // then resurface as a confusing "repoNotFound" on every load.
+            if let blocked = try await firstInaccessibleRepo() {
+                keychain.delete()
+                errorText = "That token can't access \(blocked). Give it access to that repository and try again."
+                return
+            }
             coordinator.reconnected()
             dismiss()
         } catch {
             keychain.delete()
             errorText = "That token was rejected. Check it has repo access and try again."
         }
+    }
+
+    /// Slug of the first enabled repo the just-entered token can't reach, or nil
+    /// if all are accessible. Only GitHub's access signals (404/401) count as
+    /// inaccessible; a transient network error propagates to the generic catch.
+    private func firstInaccessibleRepo() async throws -> String? {
+        let ctx = ModelContext(coordinator.modelContainerForView)
+        let repos = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
+        for repo in repos {
+            do {
+                _ = try await client.repository(RepoRef(owner: repo.owner, name: repo.name))
+            } catch let e as GitHubError where e == .repoNotFound || e == .unauthorized {
+                return "\(repo.owner)/\(repo.name)"
+            }
+        }
+        return nil
     }
 }
