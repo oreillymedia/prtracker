@@ -6,6 +6,10 @@ struct ThreadCard: View {
     let onResolveAll: () -> Void
 
     @State private var collapsed: Bool
+    @State private var hunkExpanded = false
+
+    /// Lines of diff context shown before the "Show N more lines" button.
+    private static let hunkPreviewLines = 6
 
     init(thread: Thread, onToggleMessageDone: @escaping (ThreadMessage) -> Void, onResolveAll: @escaping () -> Void) {
         self.thread = thread
@@ -156,20 +160,41 @@ struct ThreadCard: View {
 
     /// Renders the diff_hunk snippet (the GitHub-style code excerpt that
     /// anchors a code-comment thread) as a monospaced block with +/- line coloring.
+    /// Collapsed to the last `hunkPreviewLines` lines — a hunk ends on the line
+    /// the comment is attached to, so the tail is the part that matters.
+    /// Long lines scroll sideways instead of wrapping, so the block's height is
+    /// exactly its line count.
     private func diffHunkBlock(_ hunk: String) -> some View {
-        let lines = hunk.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let all = hunk.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let hidden = max(0, all.count - Self.hunkPreviewLines)
+        let lines = (hunkExpanded || hidden == 0) ? all : Array(all.suffix(Self.hunkPreviewLines))
         return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                Text(line)
-                    .font(.system(size: 11).monospaced())
-                    .foregroundStyle(diffLineColor(line))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if hidden > 0 {
+                Button { hunkExpanded.toggle() } label: {
+                    Text(hunkExpanded ? "Show less" : "Show \(hidden) more line\(hidden == 1 ? "" : "s")")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(Tokens.textMuted)
+                        .padding(.bottom, 4)
+                }
+                .buttonStyle(.plain)
             }
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 11).monospaced())
+                            .foregroundStyle(diffLineColor(line))
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(Tokens.hairline, in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Tokens.border, lineWidth: 0.5))
+        .animation(.easeOut(duration: 0.15), value: hunkExpanded)
     }
 
     private func diffLineColor(_ line: String) -> Color {

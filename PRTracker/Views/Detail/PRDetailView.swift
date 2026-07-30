@@ -58,6 +58,16 @@ struct PRDetailView: View {
                     Image(systemName: "globe")
                 }
                 .help("Open on GitHub")
+
+                Button { setAllDone(true) } label: {
+                    Image(systemName: "checkmark.circle")
+                }
+                .help("Mark all as resolved")
+
+                Button { setAllDone(false) } label: {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                }
+                .help("Mark all as unresolved")
             }
             ToolbarItem {
                 Button { inspectorPresented.toggle() } label: {
@@ -78,5 +88,10 @@ struct PRDetailView: View {
             coordinator.selectPR(prID: pr.id, ref: RepoRef(owner: pr.repo.owner, name: pr.repo.name), number: pr.number)
         }
         .onDisappear { coordinator.clearPRSelection() }
+    }
+
+    private func setAllDone(_ done: Bool) {
+        TodoHelpers.setAllDone(done, for: pr, viewerLogin: viewerLogin)
+        try? ctx.save()
     }
 }

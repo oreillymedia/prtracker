@@ -144,11 +144,8 @@ private struct SourceList: View {
                         .tag(pr.id)
                         .listRowSeparator(.hidden)
                         .contextMenu {
-                            if isResolved(pr) {
-                                Button("Mark as unresolved") { markAsUnresolved(pr) }
-                            } else {
-                                Button("Mark as resolved") { markAsResolved(pr) }
-                            }
+                            Button("Mark all as resolved") { setAllDone(true, pr) }
+                            Button("Mark all as unresolved") { setAllDone(false, pr) }
                         }
                 }
             }
@@ -194,31 +191,8 @@ private struct SourceList: View {
 
     // MARK: - Actions
 
-    private func isResolved(_ pr: PullRequest) -> Bool {
-        guard pr.state == .open else { return false }
-        let counts = TodoHelpers.todoCounts(for: pr, viewerLogin: viewerLogin, lastSeenAt: pr.lastSeenAt)
-        guard counts.total > 0, counts.open == 0 else { return false }
-        if pr.author.login == viewerLogin && pr.ciFail > 0 { return false }
-        return true
-    }
-
-    private func markAsResolved(_ pr: PullRequest) {
-        for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
-            if e.actor?.login != viewerLogin { e.isDone = true }
-        }
-        for c in pr.reviewComments where c.author.login != viewerLogin {
-            c.isDone = true
-        }
-        try? ctx.save()
-    }
-
-    private func markAsUnresolved(_ pr: PullRequest) {
-        for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
-            if e.actor?.login != viewerLogin { e.isDone = false }
-        }
-        for c in pr.reviewComments where c.author.login != viewerLogin {
-            c.isDone = false
-        }
+    private func setAllDone(_ done: Bool, _ pr: PullRequest) {
+        TodoHelpers.setAllDone(done, for: pr, viewerLogin: viewerLogin)
         try? ctx.save()
     }
 }

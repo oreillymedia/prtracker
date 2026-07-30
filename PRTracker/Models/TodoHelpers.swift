@@ -190,6 +190,17 @@ enum TodoHelpers {
         return PRRowMeta(counts: counts, ball: ball, preview: preview)
     }
 
+    /// Marks every message on `pr` that isn't mine done (or not done) — the
+    /// bulk version of a per-message checkbox. Caller saves the context.
+    static func setAllDone(_ done: Bool, for pr: PullRequest, viewerLogin: String) {
+        for e in pr.timeline where e.type == .comment || (e.type == .review && !(e.body ?? "").isEmpty) {
+            if e.actor?.login != viewerLogin { e.isDone = done }
+        }
+        for c in pr.reviewComments where c.author.login != viewerLogin {
+            c.isDone = done
+        }
+    }
+
     // MARK: - Private
 
     private static func makeMessage(timelineEvent e: TimelineEvent, viewerLogin: String, lastSeenAt: Date?) -> ThreadMessage? {
