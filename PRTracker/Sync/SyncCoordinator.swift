@@ -159,9 +159,13 @@ final class SyncCoordinator {
         // nil == 304: the list representation is unchanged.
         let (openDTOs, closedDTOs) = try await (openReq, recentReq)
 
-        // Only a fresh open list is authoritative enough to close PRs it omits.
+        // Only a fresh AND complete open list is authoritative enough to close
+        // PRs it omits. A full page might be page 1 of several, and we don't
+        // paginate — reconciling against it would close the repo's stalest open
+        // PRs. Those repos still learn about closes from the `state=closed` batch.
         if let openDTOs {
-            try await syncActor.upsertPullRequests(openDTOs, inRepoID: repoID, reconcileOpen: true)
+            try await syncActor.upsertPullRequests(openDTOs, inRepoID: repoID,
+                                                  reconcileOpen: GitHubClient.openListIsComplete(openDTOs))
         }
         if let closedDTOs {
             try await syncActor.upsertPullRequests(closedDTOs, inRepoID: repoID, reconcileOpen: false)

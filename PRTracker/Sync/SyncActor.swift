@@ -27,6 +27,15 @@ actor SyncActor {
         return u
     }
 
+    /// Collapses GitHub's three state-carrying fields (`state`, `draft`,
+    /// `merged_at`) into ours. Shared by the list upsert and the single-PR detail
+    /// patch so the two writers can't disagree about whether a PR is still open.
+    nonisolated static func prState(from dto: PullRequestDTO) -> PRState {
+        if dto.draft { return .draft }
+        if dto.merged_at != nil { return .merged }
+        return dto.state == "open" ? .open : .closed
+    }
+
     private func repoByID(_ id: String, ctx: ModelContext) -> Repo? {
         let target = id
         let predicate = #Predicate<Repo> { $0.id == target }
@@ -71,11 +80,12 @@ actor SyncActor {
     /// Upsert a batch of PRs into a repo.
     ///
     /// `reconcileOpen` must be true only when `dtos` is the *authoritative,
-    /// complete* open-PR list (from a fresh 200 on `/pulls?state=open`): in that
+    /// complete* open-PR list (from a fresh 200 on `/pulls?state=open` that came
+    /// back short of a full page — see `GitHubClient.openListIsComplete`): in that
     /// case any stored-open PR absent from the batch is marked closed. It MUST be
-    /// false for the recently-merged batch (a partial `state=closed` list) — and
-    /// for a stale-fallback batch — or we'd wrongly close every open PR that the
-    /// partial list doesn't mention.
+    /// false for the recently-merged batch (a partial `state=closed` list), for a
+    /// stale-fallback batch, and for a full page that may have been truncated —
+    /// or we'd wrongly close every open PR the partial list doesn't mention.
     func upsertPullRequests(_ dtos: [PullRequestDTO], inRepoID repoID: String, reconcileOpen: Bool = true) throws {
         let ctx = modelContext
         guard let repo = repoByID(repoID, ctx: ctx) else { return }
@@ -117,10 +127,7 @@ actor SyncActor {
             pr.openedAt = dto.created_at
             pr.updatedAt = dto.updated_at
             pr.mergedAt = dto.merged_at
-            if dto.draft { pr.state = .draft }
-            else if dto.merged_at != nil { pr.state = .merged }
-            else if dto.state == "open" { pr.state = .open }
-            else { pr.state = .closed }
+            pr.state = Self.prState(from: dto)
             pr.mergeable = dto.mergeable_state.flatMap { Mergeable(rawValue: $0.uppercased()) } ?? .unknown
             pr.lastFetchedAt = .now
             refreshActivity(pr)
@@ -336,13 +343,17 @@ actor SyncActor {
         try ctx.save()
     }
 
-    /// Patches fields on a PR from a single-PR detail fetch: diffstat, mergeable,
-    /// and GitHub's `updated_at`. Capturing `updated_at` here (the list path is
-    /// no longer the only writer) is what keeps "Last activity" fresh while a PR
-    /// is open in the detail view, instead of frozen until the next full list sync.
+    /// Patches fields on a PR from a single-PR detail fetch: state, diffstat,
+    /// mergeable, and GitHub's `updated_at`. Capturing `updated_at` here (the list
+    /// path is no longer the only writer) is what keeps "Last activity" fresh while
+    /// a PR is open in the detail view, instead of frozen until the next full list
+    /// sync — and the same goes for state: closing or merging a PR that's open in
+    /// the detail view shows up on the next priority tick, not the next list cycle.
     func updatePRStatistics(prID: String, dto: PullRequestDTO) throws {
         let ctx = modelContext
         guard let pr = prByID(prID, ctx: ctx) else { return }
+        pr.state = Self.prState(from: dto)
+        pr.mergedAt = dto.merged_at
         pr.additions = dto.additions ?? pr.additions
         pr.deletions = dto.deletions ?? pr.deletions
         pr.changedFiles = dto.changed_files ?? pr.changedFiles

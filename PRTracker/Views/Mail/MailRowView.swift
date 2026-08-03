@@ -39,15 +39,18 @@ struct MailRowView: View {
         pr.state == .open && pr.author.login == viewerLogin && pr.ciFail > 0
     }
 
+    /// Merged or closed — the PR is over either way, so it reads as finished.
+    private var isFinished: Bool { pr.state == .merged || pr.state == .closed }
+
     private var titleWeight: Font.Weight {
         if awaitingMe { return .bold }
-        if fullyResolved || pr.state == .merged { return .medium }
+        if fullyResolved || isFinished { return .medium }
         return .semibold
     }
 
     private var dimRow: Bool {
         if isSelected { return false }
-        if pr.state == .merged { return true }
+        if isFinished { return true }
         if fullyResolved { return true }
         return false
     }
@@ -117,12 +120,12 @@ struct MailRowView: View {
     @ViewBuilder
     private var statusChip: some View {
         switch chipKind {
-        case .merged:
+        case .state(let kind):
             HStack(spacing: 3) {
-                Image(systemName: "arrow.triangle.merge").font(.system(size: 11).weight(.semibold))
-                Text("Merged").font(.system(size: 10.5, weight: .semibold))
+                Image(systemName: kind.icon).font(.system(size: 11).weight(.semibold))
+                Text(kind.label).font(.system(size: 10.5, weight: .semibold))
             }
-            .foregroundStyle(highlighted ? .white : Lane.recent.color)
+            .foregroundStyle(highlighted ? .white : kind.tint)
         case .ciFailed:
             HStack(spacing: 3) {
                 Image(systemName: "xmark.octagon.fill").font(.system(size: 10).weight(.bold))
@@ -154,10 +157,12 @@ struct MailRowView: View {
         }
     }
 
-    private enum ChipKind { case merged, ciFailed, caughtUp, forMe(Int), waiting, none }
+    private enum ChipKind { case state(PRStatePill.Kind), ciFailed, caughtUp, forMe(Int), waiting, none }
 
     private var chipKind: ChipKind {
-        if pr.state == .merged { return .merged }
+        // Merged/closed wins outright; a draft is still live work, so it keeps
+        // whichever todo chip applies rather than advertising "Draft".
+        if isFinished, let kind = PRStatePill.Kind(pr.state) { return .state(kind) }
         // CI failure on the viewer's own PR takes precedence over caughtUp /
         // forMe — fixing the build is the implicit todo.
         if ciFailedForMe { return .ciFailed }

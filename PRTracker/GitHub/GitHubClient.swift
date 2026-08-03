@@ -84,8 +84,23 @@ extension GitHubClient {
     // `nil` == 304; the caller keeps the stored PR set. Because a 304 open-list
     // is NOT an authoritative "these are the only open PRs" signal, the caller
     // must not run close-reconciliation against a nil result.
+    /// One page of open PRs, newest-activity first. We don't paginate, so a
+    /// response of exactly `openPRPageSize` items may be truncated — see
+    /// `openListIsComplete`, which the caller uses to decide whether the batch
+    /// can be trusted to close the PRs it omits.
+    static let openPRPageSize = 50
+
     func listOpenPRs(repo: RepoRef) async throws -> [PullRequestDTO]? {
-        try await sendConditional(Endpoints.pulls(repo, state: "open", perPage: 50), as: [PullRequestDTO].self)
+        try await sendConditional(Endpoints.pulls(repo, state: "open", perPage: Self.openPRPageSize),
+                                  as: [PullRequestDTO].self)
+    }
+
+    /// Whether an open-PR batch is the repo's *whole* open set. A short page is
+    /// complete by definition; a full one means there may be a page 2 we never
+    /// asked for, and treating it as complete would mark the stalest open PRs
+    /// closed (they sort last under `updated desc` and fall off page 1).
+    nonisolated static func openListIsComplete(_ dtos: [PullRequestDTO]) -> Bool {
+        dtos.count < openPRPageSize
     }
     func listRecentlyMerged(repo: RepoRef, limit: Int) async throws -> [PullRequestDTO]? {
         try await sendConditional(Endpoints.pulls(repo, state: "closed", perPage: limit), as: [PullRequestDTO].self)

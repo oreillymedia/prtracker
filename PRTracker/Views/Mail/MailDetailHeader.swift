@@ -30,6 +30,9 @@ struct MailDetailHeader: View {
 
     private var metadataRow: some View {
         HStack(spacing: 6) {
+            if let state = PRStatePill.Kind(pr.state) {
+                PRStatePill(kind: state)
+            }
             AvatarView(user: pr.author, size: 18)
             Text(pr.author.name ?? pr.author.login)
                 .font(.system(size: 11.5, weight: .medium))
