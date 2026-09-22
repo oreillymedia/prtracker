@@ -93,6 +93,8 @@ final class SyncCoordinator {
     func signOut() {
         isSignedOut = true
         stop()
+        isSyncing = false
+        pendingRefresh = false
         needsReauth = false
         lastSyncError = nil
         lastDetailError = nil
