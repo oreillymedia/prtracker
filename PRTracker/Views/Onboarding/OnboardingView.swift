@@ -96,15 +96,25 @@ struct OnboardingView: View {
     }
 
     private func validateToken() async {
+        let token = GitHubTokenMetadata.normalizedToken(model.token)
+        guard !token.isEmpty else { return }
         model.isValidating = true; defer { model.isValidating = false }
-        keychain.save(model.token)
+        model.connectProblem = nil
+        keychain.save(token)
         do {
-            let dto = try await client.validate()
-            model.applyValidatedViewer(dto)
+            let response = try await client.validateWithMetadata()
+            let metadata = GitHubTokenMetadata(token: token, headers: response.headers)
+            model.applyValidatedViewer(response.value, tokenMetadata: metadata)
             model.token = ""
-        } catch {
+        } catch let error as GitHubError {
+            model.connectProblem = error.userFacing
+            model.connectError = error.userFacing.detail
+            if case .network = error { return }
+            if case .decoding = error { return }
             keychain.delete()
-            model.connectError = "That token was rejected. Check it has repo access and try again."
+        } catch {
+            model.connectProblem = GitHubError.network(message: error.localizedDescription).userFacing
+            model.connectError = "Couldn't reach GitHub. Check your connection and try again."
         }
     }
 
@@ -115,17 +125,16 @@ struct OnboardingView: View {
         }
         model.isCheckingRepo = true; defer { model.isCheckingRepo = false }
         model.addError = nil
+        model.addProblem = nil
         do {
             _ = try await client.repository(ref)
             _ = model.addRepo(model.newRepo)
             model.newRepo = ""
-        } catch GitHubError.repoNotFound {
-            model.addError = "Couldn't find \(ref.slug), or your token can't access it."
-        } catch GitHubError.unauthorized {
-            model.addError = "Your token was rejected. Check it hasn't expired."
-        } catch GitHubError.forbidden {
-            model.addError = "GitHub denied access to \(ref.slug). Your token may lack the required scope, or need SSO authorization for that organization."
+        } catch let error as GitHubError {
+            model.addProblem = error.userFacing
+            model.addError = error.userFacing.detail
         } catch {
+            model.addProblem = GitHubError.network(message: error.localizedDescription).userFacing
             model.addError = "Couldn't verify \(ref.slug). Check your connection and try again."
         }
     }

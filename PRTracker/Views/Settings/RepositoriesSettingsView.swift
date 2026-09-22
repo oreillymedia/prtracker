@@ -8,6 +8,7 @@ import UserNotifications
 struct RepositoriesSettingsView: View {
     @Environment(\.modelContext) private var ctx
     @Environment(\.controlActiveState) private var controlActiveState
+    @Environment(\.openURL) private var openURL
     @Query(sort: [SortDescriptor(\Repo.id)]) private var repos: [Repo]
 
     let coordinator: SyncCoordinator
@@ -17,6 +18,8 @@ struct RepositoriesSettingsView: View {
     @State private var newRepo = ""
     @State private var repoPendingDeletion: Repo?
     @State private var authDeniedHintVisible = false
+    @State private var repoProblem: GitHubErrorPresentation?
+    @State private var isAddingRepo = false
 
     private var selectedRepo: Repo? { repos.first { $0.id == selectedRepoID } }
 
@@ -70,7 +73,7 @@ struct RepositoriesSettingsView: View {
 
     private var addRemoveBar: some View {
         HStack(spacing: 0) {
-            Button { newRepo = ""; showAddSheet = true } label: {
+            Button { newRepo = ""; repoProblem = nil; showAddSheet = true } label: {
                 Image(systemName: "plus").frame(width: 24, height: 22).contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
@@ -164,10 +167,28 @@ struct RepositoriesSettingsView: View {
             TextField("owner/name", text: $newRepo)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 260)
+            if let problem = repoProblem {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(problem.title).font(.system(size: 11, weight: .semibold))
+                    Text(problem.detail).font(.system(size: 11))
+                    if let action = problem.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.changes)
+            }
             HStack {
                 Spacer()
                 Button("Cancel") { showAddSheet = false }
-                Button("Add") { addRepo() }.disabled(!canAddRepo).keyboardShortcut(.defaultAction)
+                Button {
+                    Task { await addRepo() }
+                } label: {
+                    if isAddingRepo { ProgressView().controlSize(.small) } else { Text("Add") }
+                }
+                .disabled(!canAddRepo || isAddingRepo)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
@@ -182,14 +203,24 @@ struct RepositoriesSettingsView: View {
         return !repos.contains { $0.id == ref.slug }
     }
 
-    private func addRepo() {
+    private func addRepo() async {
         guard let ref = RepoRef.parse(newRepo), !repos.contains(where: { $0.id == ref.slug }) else { return }
-        ctx.insert(Repo(owner: ref.owner, name: ref.name))
-        try? ctx.save()
-        newRepo = ""
-        showAddSheet = false
-        selectedRepoID = ref.slug
-        Task { await coordinator.refresh() }
+        isAddingRepo = true
+        repoProblem = nil
+        defer { isAddingRepo = false }
+        do {
+            _ = try await coordinator.clientForView.repository(ref)
+            ctx.insert(Repo(owner: ref.owner, name: ref.name))
+            try? ctx.save()
+            newRepo = ""
+            showAddSheet = false
+            selectedRepoID = ref.slug
+            await coordinator.refresh()
+        } catch let error as GitHubError {
+            repoProblem = error.userFacing
+        } catch {
+            repoProblem = GitHubError.network(message: error.localizedDescription).userFacing
+        }
     }
 
     private func deleteRepo(_ repo: Repo) {

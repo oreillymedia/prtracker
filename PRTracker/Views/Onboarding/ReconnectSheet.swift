@@ -10,6 +10,7 @@ import SwiftData
 /// is a reconfigure-level action handled by onboarding.
 struct ReconnectSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let keychain: Keychain
     let client: GitHubClient
@@ -18,6 +19,7 @@ struct ReconnectSheet: View {
     @State private var token = ""
     @State private var isValidating = false
     @State private var errorText: String?
+    @State private var problem: GitHubErrorPresentation?
 
     private var trimmed: String { token.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canValidate: Bool { !trimmed.isEmpty && !isValidating }
@@ -32,11 +34,20 @@ struct ReconnectSheet: View {
             SecureField("ghp_… or github_pat_…", text: $token)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { if canValidate { Task { await validate() } } }
-            if let errorText {
-                Text(errorText).font(.system(size: 11)).foregroundStyle(Tokens.changes).fixedSize(horizontal: false, vertical: true)
+            if let problem {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(problem.title).font(.system(size: 11, weight: .semibold))
+                    Text(problem.detail).font(.system(size: 11))
+                    if let action = problem.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.changes)
             }
             HStack {
-                Link("Create a token…", destination: URL(string: "https://github.com/settings/tokens")!).font(.system(size: 11))
+                Link("Create a token…", destination: GitHubTokenGuide.tokenURL).font(.system(size: 11))
                 Spacer()
                 Button("Cancel") { dismiss() }
                 Button {
@@ -55,11 +66,12 @@ struct ReconnectSheet: View {
     private func validate() async {
         isValidating = true; defer { isValidating = false }
         errorText = nil
+        problem = nil
         // Save first: the client reads the token from the keychain per request,
         // so validate() below exercises exactly the credential we're storing.
         keychain.save(trimmed)
         do {
-            _ = try await client.validate()
+            _ = try await client.validateWithMetadata()
             // /user only proves the token authenticates. Verify it can actually
             // reach the configured repos too — GitHub returns 404 for a private
             // repo a token can't see, which would otherwise clear the banner and
@@ -71,9 +83,15 @@ struct ReconnectSheet: View {
             }
             coordinator.reconnected()
             dismiss()
-        } catch {
+        } catch let error as GitHubError {
+            problem = error.userFacing
+            errorText = error.userFacing.detail
+            if case .network = error { return }
+            if case .decoding = error { return }
             keychain.delete()
-            errorText = "That token was rejected. Check it has repo access and try again."
+        } catch {
+            problem = GitHubError.network(message: error.localizedDescription).userFacing
+            errorText = "Couldn't reach GitHub. Check your connection and try again."
         }
     }
 

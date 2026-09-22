@@ -64,14 +64,6 @@ struct MailSourceColumn: View {
     }
 
     private func syncErrorText(_ err: GitHubError) -> String {
-        switch err {
-        case .unauthorized:   return "Sync failed — check your token"
-        case .forbidden:      return "Sync failed — token lacks access"
-        case .repoNotFound:   return "Sync failed — repo not found"
-        case .rateLimited:    return "Sync paused — rate limited"
-        case .network:        return "Sync failed — network error"
-        case .decoding:       return "Sync failed — unexpected response"
-        case .notModified:    return "Up to date"
-        }
+        err.userFacing.title
     }
 }

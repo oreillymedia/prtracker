@@ -17,6 +17,20 @@ import SwiftData
         #expect(m.canContinue(from: .connect))
     }
 
+    @Test func validatedTokenMetadataIsRetainedForConnectionSummary() {
+        let m = OnboardingModel(mode: .firstRun)
+        let expiration = Date(timeIntervalSince1970: 1_900_000_000)
+        let metadata = GitHubTokenMetadata(token: "ghp_example", headers: [
+            "X-OAuth-Scopes": "repo",
+            "GitHub-Authentication-Token-Expiration": "2030-03-17 17:46:40 UTC",
+        ])
+        m.applyValidatedViewer(UserDTO(login: "alex", name: "Alex", avatar_url: nil), tokenMetadata: metadata)
+
+        #expect(m.tokenMetadata?.type == .classic)
+        #expect(m.tokenMetadata?.scopes == ["repo"])
+        #expect(m.tokenMetadata?.expiration == expiration)
+    }
+
     @Test func repositoriesRequireAtLeastOne() {
         let m = OnboardingModel(mode: .firstRun)
         #expect(!m.canContinue(from: .repositories))

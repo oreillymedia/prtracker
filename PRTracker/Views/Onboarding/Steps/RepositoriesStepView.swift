@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RepositoriesStepView: View {
+    @Environment(\.openURL) private var openURL
     @Bindable var model: OnboardingModel
     var onAdd: () -> Void
 
@@ -18,8 +19,17 @@ struct RepositoriesStepView: View {
                 }
                 .disabled(RepoRef.parse(model.newRepo) == nil || model.isCheckingRepo)
             }
-            if let err = model.addError {
-                Text(err).font(.system(size: 11, weight: .medium)).foregroundStyle(Tokens.changes)
+            if let problem = model.addProblem {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(problem.title).font(.system(size: 11, weight: .semibold))
+                    Text(problem.detail).font(.system(size: 11))
+                    if let action = problem.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.changes)
             }
 
             if model.pending.isEmpty {

@@ -20,6 +20,9 @@ final class SyncCoordinator {
     /// pause while it's set, and it clears only when a fresh token validates via
     /// `reconnected()`. The main window surfaces it as a Reconnect banner.
     var needsReauth: Bool = false
+    /// True after an explicit sign-out. It prevents an in-flight refresh loop
+    /// from starting another request while the token is being removed.
+    var isSignedOut: Bool = false
     var notificationDispatcher: NotificationDispatcher?
     var badgeController: BadgeController?
 
@@ -63,6 +66,7 @@ final class SyncCoordinator {
     }
 
     func start() {
+        isSignedOut = false
         task?.cancel()
         task = Task { [weak self] in await self?.loop() }
         priorityTask?.cancel()
@@ -82,10 +86,24 @@ final class SyncCoordinator {
         }
     }
 
+    /// Stop all polling and clear transient auth state after an explicit sign-out.
+    /// The settings surface removes the token and viewer immediately after this
+    /// method returns, so no later loop iteration can send an unauthenticated
+    /// request.
+    func signOut() {
+        isSignedOut = true
+        stop()
+        needsReauth = false
+        lastSyncError = nil
+        lastDetailError = nil
+        lastSyncAt = nil
+    }
+
     /// Called after the user validates a fresh token in the Reconnect sheet.
     /// Clears the sticky reauth state and any stale error, then kicks an
     /// immediate sync so the paused loop doesn't idle a full interval first.
     func reconnected() {
+        isSignedOut = false
         needsReauth = false
         lastSyncError = nil
         lastDetailError = nil
@@ -95,7 +113,7 @@ final class SyncCoordinator {
     func refresh() async {
         // A dead token can't succeed; the loops keep ticking but do no work
         // until the user reconnects (which flips this off before calling us).
-        if needsReauth { return }
+        if needsReauth || isSignedOut { return }
         // Coalesce a refresh requested mid-sync into a single follow-up pass
         // rather than dropping it — a manual "Refresh now" during a background
         // cycle should still take effect.
@@ -260,7 +278,7 @@ final class SyncCoordinator {
 
     private func priorityLoop() async {
         while !Task.isCancelled {
-            if let sel = prioritySelection, !needsReauth { await refreshPR(sel) }
+            if let sel = prioritySelection, !needsReauth, !isSignedOut { await refreshPR(sel) }
             try? await Task.sleep(nanoseconds: UInt64(priorityIntervalSec * 1_000_000_000))
         }
     }
@@ -270,7 +288,7 @@ final class SyncCoordinator {
     /// the `isRefreshingDetail` guard — the upserts are idempotent, so skipping a
     /// duplicate in-flight pass loses nothing.
     private func refreshPR(_ sel: PrioritySelection) async {
-        if isRefreshingDetail { return }
+        if isSignedOut || isRefreshingDetail { return }
         isRefreshingDetail = true
         defer { isRefreshingDetail = false }
 

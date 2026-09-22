@@ -41,13 +41,16 @@ final class OnboardingModel {
     // Connect
     var token: String = ""
     var viewer: UserDTO?
+    var tokenMetadata: GitHubTokenMetadata?
     var connectError: String?
+    var connectProblem: GitHubErrorPresentation?
     var isValidating = false
 
     // Repositories
     var pending: [PendingRepo] = []
     var newRepo: String = ""
     var addError: String?
+    var addProblem: GitHubErrorPresentation?
     var isCheckingRepo = false
 
     // Notifications
@@ -69,9 +72,11 @@ final class OnboardingModel {
         }
     }
 
-    func applyValidatedViewer(_ dto: UserDTO) {
+    func applyValidatedViewer(_ dto: UserDTO, tokenMetadata: GitHubTokenMetadata? = nil) {
         viewer = dto
+        self.tokenMetadata = tokenMetadata
         connectError = nil
+        connectProblem = nil
     }
 
     /// Add a verified repo. Returns false if the string is unparseable or a duplicate.

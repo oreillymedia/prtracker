@@ -92,6 +92,7 @@ struct SettingsView: View {
                 Text("Not signed in.").microText().foregroundStyle(Tokens.textMuted)
             }
             Button("Sign out") {
+                coordinator.signOut()
                 keychain.delete()
                 vs.viewer = nil
                 try? ctx.save()
