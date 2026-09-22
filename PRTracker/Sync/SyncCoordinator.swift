@@ -234,23 +234,23 @@ final class SyncCoordinator {
                         // Permission gaps are actionable at the repository level;
                         // transient per-PR failures still leave the repo eligible
                         // for a later retry without hiding the access problem.
-                        return (false, error.isPermissionGap ? error : nil)
+                        return (false, error)
                     } catch {
                         return (false, nil)
                     }
                 }
             }
             var all = true
-            var firstPermissionError: GitHubError?
+            var firstError: GitHubError?
             for await outcome in group {
                 if !outcome.0 { all = false }
-                if firstPermissionError == nil, let error = outcome.1 {
-                    firstPermissionError = error
+                if firstError == nil, let error = outcome.1 {
+                    firstError = error
                 }
             }
-            return (all, firstPermissionError)
+            return (all, firstError)
         }
-        if let firstPermissionError = taskOutcome.1 { throw firstPermissionError }
+        if let firstError = taskOutcome.1 { throw firstError }
         let outcomes = taskOutcome.0
 
         // Record the successful check even when every request 304'd, so the

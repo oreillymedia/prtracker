@@ -12,6 +12,7 @@ struct ConnectionCheckItem: Identifiable, Equatable {
     let status: ConnectionCheckStatus
     let message: String
     let action: GitHubErrorAction?
+    let isTransient: Bool
 }
 
 struct ConnectionCheckResult: Equatable {
@@ -22,6 +23,10 @@ struct ConnectionCheckResult: Equatable {
 
     var isHealthy: Bool {
         !items.contains { $0.status == .failure }
+    }
+
+    var hasTransientFailure: Bool {
+        items.contains { $0.status == .failure && $0.isTransient }
     }
 }
 
@@ -42,7 +47,8 @@ struct ConnectionCheck {
             viewer = nil
             metadata = GitHubTokenMetadata(token: token, headers: [:])
             items.append(item(id: "identity", title: "Identity", status: .failure,
-                              message: error.userFacing.detail, action: error.userFacing.action))
+                              message: error.userFacing.detail, action: error.userFacing.action,
+                              isTransient: error.isTransient))
             items.append(tokenTypeItem(metadata))
             return ConnectionCheckResult(viewer: viewer, metadata: metadata, items: items, identityError: error)
         } catch {
@@ -50,7 +56,7 @@ struct ConnectionCheck {
             metadata = GitHubTokenMetadata(token: token, headers: [:])
             let problem = GitHubError.network(message: error.localizedDescription).userFacing
             items.append(item(id: "identity", title: "Identity", status: .failure,
-                              message: problem.detail, action: problem.action))
+                              message: problem.detail, action: problem.action, isTransient: true))
             items.append(tokenTypeItem(metadata))
             return ConnectionCheckResult(viewer: viewer, metadata: metadata, items: items, identityError: .network(message: error.localizedDescription))
         }
@@ -77,11 +83,12 @@ struct ConnectionCheck {
         } catch let error as GitHubError {
             let problem = error.userFacing
             items.append(item(id: "sso", title: "Organization SSO", status: .failure,
-                              message: problem.detail, action: problem.action))
+                              message: problem.detail, action: problem.action,
+                              isTransient: error.isTransient))
         } catch {
             let problem = GitHubError.network(message: error.localizedDescription).userFacing
             items.append(item(id: "sso", title: "Organization SSO", status: .failure,
-                              message: problem.detail, action: problem.action))
+                              message: problem.detail, action: problem.action, isTransient: true))
         }
 
         for repo in repos {
@@ -101,12 +108,13 @@ struct ConnectionCheck {
         } catch let error as GitHubError {
             let problem = repoProblem(error, metadata: metadata)
             items.append(item(id: "\(prefix):reachable", title: "\(repo.slug) reachable",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action,
+                              isTransient: error.isTransient))
             return
         } catch {
             let problem = GitHubError.network(message: error.localizedDescription).userFacing
             items.append(item(id: "\(prefix):reachable", title: "\(repo.slug) reachable",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action, isTransient: true))
             return
         }
 
@@ -125,11 +133,12 @@ struct ConnectionCheck {
                 problem = error.userFacing
             }
             items.append(item(id: "\(prefix):pulls", title: "\(repo.slug) pull requests",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action,
+                              isTransient: error.isTransient))
         } catch {
             let problem = GitHubError.network(message: error.localizedDescription).userFacing
             items.append(item(id: "\(prefix):pulls", title: "\(repo.slug) pull requests",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action, isTransient: true))
         }
 
         do {
@@ -148,11 +157,12 @@ struct ConnectionCheck {
                 problem = error.userFacing
             }
             items.append(item(id: "\(prefix):checks", title: "\(repo.slug) CI checks",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action,
+                              isTransient: error.isTransient))
         } catch {
             let problem = GitHubError.network(message: error.localizedDescription).userFacing
             items.append(item(id: "\(prefix):checks", title: "\(repo.slug) CI checks",
-                              status: .failure, message: problem.detail, action: problem.action))
+                              status: .failure, message: problem.detail, action: problem.action, isTransient: true))
         }
     }
 
@@ -213,7 +223,7 @@ struct ConnectionCheck {
     }
 
     private func item(id: String, title: String, status: ConnectionCheckStatus,
-                      message: String, action: GitHubErrorAction?) -> ConnectionCheckItem {
-        ConnectionCheckItem(id: id, title: title, status: status, message: message, action: action)
+                      message: String, action: GitHubErrorAction?, isTransient: Bool = false) -> ConnectionCheckItem {
+        ConnectionCheckItem(id: id, title: title, status: status, message: message, action: action, isTransient: isTransient)
     }
 }

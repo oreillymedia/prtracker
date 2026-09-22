@@ -107,8 +107,7 @@ struct OnboardingView: View {
         if let failure = result.items.first(where: { $0.status == .failure }) {
             model.connectProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
             model.connectError = failure.message
-            if case .network = result.identityError { return }
-            if case .decoding = result.identityError { return }
+            if result.hasTransientFailure { return }
             keychain.delete()
             return
         }

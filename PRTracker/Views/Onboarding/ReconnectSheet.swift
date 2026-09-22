@@ -84,8 +84,7 @@ struct ReconnectSheet: View {
         if let failure = result.items.first(where: { $0.status == .failure }) {
             problem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
             errorText = failure.message
-            if case .network = result.identityError { return }
-            if case .decoding = result.identityError { return }
+            if result.hasTransientFailure { return }
             keychain.delete()
             return
         }

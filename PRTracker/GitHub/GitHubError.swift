@@ -30,6 +30,13 @@ extension GitHubError {
         }
     }
 
+    var isTransient: Bool {
+        switch self {
+        case .network, .decoding: return true
+        default: return false
+        }
+    }
+
     var userFacing: GitHubErrorPresentation {
         switch self {
         case .unauthorized:

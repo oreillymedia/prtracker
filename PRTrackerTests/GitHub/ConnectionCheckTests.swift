@@ -35,6 +35,16 @@ import Foundation
         }
     }
 
+    @Test func organizationNetworkFailureIsTransient() async throws {
+        try await StubURLProtocol.withExclusiveStubs {
+            StubURLProtocol.register(url: "https://api.github.com/user", body: userJSON())
+
+            let result = await check()
+            #expect(result.hasTransientFailure)
+            #expect(result.items.first { $0.id == "sso" }?.status == .failure)
+        }
+    }
+
     @Test func repoSSOHeaderOffersAuthorizeAction() async throws {
         try await StubURLProtocol.withExclusiveStubs {
             StubURLProtocol.register(url: "https://api.github.com/user", headers: ["X-OAuth-Scopes": "repo"], body: userJSON())
