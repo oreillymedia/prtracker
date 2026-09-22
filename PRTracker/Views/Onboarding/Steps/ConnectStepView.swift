@@ -62,6 +62,18 @@ struct ConnectStepView: View {
                 }
                 .foregroundStyle(Tokens.changes)
             }
+            if let warning = model.connectionResult?.items.first(where: { $0.status == .warning }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(warning.title).font(.system(size: 11, weight: .semibold))
+                    Text(warning.message).font(.system(size: 11))
+                    if let action = warning.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.pending)
+            }
             Spacer()
         }
     }

@@ -144,17 +144,22 @@ final class SyncCoordinator {
             let needsBaseline = repo.lastFetchedAt == nil || !repo.didBaselineThreads
             do {
                 try await refreshRepo(ref: ref, repoID: repo.id, needsBaseline: needsBaseline)
+                repo.lastSyncErrorRaw = nil
             } catch let e as GitHubError {
+                repo.lastSyncErrorRaw = String(describing: e)
                 // A 401 is terminal, not transient: flag the dead token so the
                 // loop pauses and the banner appears, rather than logging it as
                 // just another "sync failed" that keeps retrying every cycle.
                 if e == .unauthorized { needsReauth = true } else { lastSyncError = e }
                 allSucceeded = false
             } catch {
-                lastSyncError = .network(message: error.localizedDescription)
+                let e = GitHubError.network(message: error.localizedDescription)
+                repo.lastSyncErrorRaw = String(describing: e)
+                lastSyncError = e
                 allSucceeded = false
             }
         }
+        try? ctx.save()
         // Advance the global "Updated" time only when the whole set refreshed —
         // an honest "everything is at least this fresh" signal.
         if allSucceeded { lastSyncAt = .now }
@@ -201,7 +206,7 @@ final class SyncCoordinator {
 
         // Each task reports whether all of its fetches succeeded, so the baseline
         // pass can tell whether it saw the repo's full current state.
-        let outcomes = await withTaskGroup(of: Bool.self) { group in
+        let taskOutcome = await withTaskGroup(of: (Bool, GitHubError?).self) { group in
             let semaphore = AsyncSemaphore(value: 5)
             let actorRef = syncActor
             let clientRef = client
@@ -222,17 +227,29 @@ final class SyncCoordinator {
                         if let tItems { try await actorRef.upsertTimeline(prID: target.nodeID, items: tItems) }
                         if let reviewDTOs { try await actorRef.upsertReviewerStates(prID: target.nodeID, fromReviews: reviewDTOs) }
                         if let reviewComments { try await actorRef.upsertReviewComments(prID: target.nodeID, fromDTOs: reviewComments) }
-                        return true
+                        return (true, nil)
+                    } catch let error as GitHubError {
+                        // Permission gaps are actionable at the repository level;
+                        // transient per-PR failures still leave the repo eligible
+                        // for a later retry without hiding the access problem.
+                        return (false, error.isPermissionGap ? error : nil)
                     } catch {
-                        // Per-PR failure; toolbar surfaces aggregate errors only.
-                        return false
+                        return (false, nil)
                     }
                 }
             }
             var all = true
-            for await ok in group where !ok { all = false }
-            return all
+            var firstPermissionError: GitHubError?
+            for await outcome in group {
+                if !outcome.0 { all = false }
+                if firstPermissionError == nil, let error = outcome.1 {
+                    firstPermissionError = error
+                }
+            }
+            return (all, firstPermissionError)
         }
+        if let firstPermissionError = taskOutcome.1 { throw firstPermissionError }
+        let outcomes = taskOutcome.0
 
         // Record the successful check even when every request 304'd, so the
         // per-repo "last checked" time reflects reality.

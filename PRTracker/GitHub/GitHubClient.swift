@@ -108,6 +108,10 @@ actor GitHubClient {
     func validateWithMetadata() async throws -> GitHubResponse<UserDTO> {
         try await sendResponse(Endpoints.user, as: UserDTO.self)
     }
+
+    func organizationsWithMetadata() async throws -> GitHubResponse<[OrganizationDTO]> {
+        try await sendResponse(Endpoints.organizations, as: [OrganizationDTO].self)
+    }
 }
 
 extension GitHubClient {
@@ -166,6 +170,18 @@ extension GitHubClient {
     /// Verify a repo exists and is accessible to the token. Throws
     /// `.repoNotFound` (404) or `.unauthorized` (401) otherwise.
     func repository(_ repo: RepoRef) async throws -> RepoDTO {
-        try await send(Endpoints.repo(repo), as: RepoDTO.self)
+        try await repositoryWithMetadata(repo).value
+    }
+
+    func repositoryWithMetadata(_ repo: RepoRef) async throws -> GitHubResponse<RepoDTO> {
+        try await sendResponse(Endpoints.repo(repo), as: RepoDTO.self)
+    }
+
+    func probePullRequests(repo: RepoRef) async throws -> GitHubResponse<[PullRequestDTO]> {
+        try await sendResponse(Endpoints.pulls(repo, state: "open", perPage: 1), as: [PullRequestDTO].self)
+    }
+
+    func probeCheckRuns(repo: RepoRef, ref: String) async throws -> GitHubResponse<CheckRunsResponseDTO> {
+        try await sendResponse(Endpoints.checkRuns(repo, ref: ref, perPage: 1), as: CheckRunsResponseDTO.self)
     }
 }

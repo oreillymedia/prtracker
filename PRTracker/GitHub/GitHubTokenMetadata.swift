@@ -32,6 +32,10 @@ struct GitHubTokenMetadata: Equatable, Sendable {
         token.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    static func hasPartialSSO(in headers: [String: String]) -> Bool {
+        header("X-GitHub-SSO", in: headers)?.lowercased().hasPrefix("partial-results") == true
+    }
+
     private static func header(_ name: String, in headers: [String: String]) -> String? {
         headers.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value
     }

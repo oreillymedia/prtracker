@@ -42,6 +42,7 @@ final class OnboardingModel {
     var token: String = ""
     var viewer: UserDTO?
     var tokenMetadata: GitHubTokenMetadata?
+    var connectionResult: ConnectionCheckResult?
     var connectError: String?
     var connectProblem: GitHubErrorPresentation?
     var isValidating = false
@@ -109,6 +110,11 @@ final class OnboardingModel {
                 let v = ViewerState(); ctx.insert(v); return v
             }()
             vs.viewer = user
+            if let tokenMetadata {
+                vs.tokenType = tokenMetadata.type
+                vs.tokenScopes = tokenMetadata.scopes
+                vs.tokenExpirationDate = tokenMetadata.expiration
+            }
         }
 
         let current = (try? ctx.fetch(FetchDescriptor<Repo>())) ?? []

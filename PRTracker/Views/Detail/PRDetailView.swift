@@ -28,9 +28,16 @@ struct PRDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let loadError = coordinator.lastDetailError {
-                        Text("Couldn't load timeline: \(String(describing: loadError)). Click refresh to retry.")
-                            .foregroundStyle(Tokens.changes).padding(8)
-                            .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                        let problem = loadError.userFacing
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(problem.title).font(.system(size: 12, weight: .semibold))
+                            Text(problem.detail).font(.system(size: 11))
+                            Button("Retry") { coordinator.refreshSelectedPRNow() }
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(Tokens.changes)
+                        .padding(8)
+                        .background(Tokens.changes.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                     }
                     ThreadsView(pr: pr, viewerLogin: viewerLogin, syncActor: syncActor)
                 }.padding(20)

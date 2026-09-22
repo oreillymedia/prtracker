@@ -88,7 +88,7 @@ struct OnboardingView: View {
         if mode == .firstRun {
             coordinator.start()
         } else {
-            Task { await coordinator.refresh() }
+            coordinator.reconnected()
         }
         // Onboarding is always presented as a sheet now (first-run included),
         // so both modes dismiss; MainView shows the configured app behind it.
@@ -101,21 +101,21 @@ struct OnboardingView: View {
         model.isValidating = true; defer { model.isValidating = false }
         model.connectProblem = nil
         keychain.save(token)
-        do {
-            let response = try await client.validateWithMetadata()
-            let metadata = GitHubTokenMetadata(token: token, headers: response.headers)
-            model.applyValidatedViewer(response.value, tokenMetadata: metadata)
-            model.token = ""
-        } catch let error as GitHubError {
-            model.connectProblem = error.userFacing
-            model.connectError = error.userFacing.detail
-            if case .network = error { return }
-            if case .decoding = error { return }
+
+        let result = await ConnectionCheck(client: client, token: token).run(repos: [])
+        model.connectionResult = result
+        if let failure = result.items.first(where: { $0.status == .failure }) {
+            model.connectProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+            model.connectError = failure.message
+            if case .network = result.identityError { return }
+            if case .decoding = result.identityError { return }
             keychain.delete()
-        } catch {
-            model.connectProblem = GitHubError.network(message: error.localizedDescription).userFacing
-            model.connectError = "Couldn't reach GitHub. Check your connection and try again."
+            return
         }
+
+        guard let viewer = result.viewer else { return }
+        model.applyValidatedViewer(viewer, tokenMetadata: result.metadata)
+        model.token = ""
     }
 
     private func addRepo() async {
@@ -127,7 +127,15 @@ struct OnboardingView: View {
         model.addError = nil
         model.addProblem = nil
         do {
-            _ = try await client.repository(ref)
+            guard let token = keychain.load() else {
+                throw GitHubError.unauthorized
+            }
+            let result = await ConnectionCheck(client: client, token: token).run(repos: [ref])
+            if let failure = result.items.first(where: { $0.status == .failure }) {
+                model.addProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+                model.addError = failure.message
+                return
+            }
             _ = model.addRepo(model.newRepo)
             model.newRepo = ""
         } catch let error as GitHubError {

@@ -7,6 +7,7 @@ final class Repo {
     var owner: String
     var name: String
     var lastFetchedAt: Date?
+    var lastSyncErrorRaw: String?
     var isEnabled: Bool
     var notificationLevelRaw: String = NotificationLevel.personal.rawValue
     /// True once the background loop has fetched this repo's PR threads
@@ -30,6 +31,7 @@ final class Repo {
         self.id = "\(owner)/\(name)"
         self.owner = owner
         self.name = name
+        self.lastSyncErrorRaw = nil
         self.isEnabled = isEnabled
     }
 }

@@ -30,6 +30,14 @@ struct ReconnectSheet: View {
                 Text("Reconnect to GitHub").font(.system(size: 15, weight: .semibold))
                 Text("Your access token expired or was revoked. Paste a new token with repo access to resume syncing.")
                     .font(.system(size: 12)).foregroundStyle(Tokens.textMuted).fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(GitHubTokenGuide.checklist.enumerated()), id: \.offset) { index, item in
+                        SwiftUI.Label(item, systemImage: "\(index + 1).circle")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(Tokens.textFaint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             SecureField("ghp_… or github_pat_…", text: $token)
                 .textFieldStyle(.roundedBorder)
@@ -67,47 +75,41 @@ struct ReconnectSheet: View {
         isValidating = true; defer { isValidating = false }
         errorText = nil
         problem = nil
-        // Save first: the client reads the token from the keychain per request,
-        // so validate() below exercises exactly the credential we're storing.
         keychain.save(trimmed)
-        do {
-            _ = try await client.validateWithMetadata()
-            // /user only proves the token authenticates. Verify it can actually
-            // reach the configured repos too — GitHub returns 404 for a private
-            // repo a token can't see, which would otherwise clear the banner and
-            // then resurface as a confusing "repoNotFound" on every load.
-            if let blocked = try await firstInaccessibleRepo() {
-                keychain.delete()
-                errorText = "That token can't access \(blocked). Give it access to that repository and try again."
-                return
-            }
-            coordinator.reconnected()
-            dismiss()
-        } catch let error as GitHubError {
-            problem = error.userFacing
-            errorText = error.userFacing.detail
-            if case .network = error { return }
-            if case .decoding = error { return }
-            keychain.delete()
-        } catch {
-            problem = GitHubError.network(message: error.localizedDescription).userFacing
-            errorText = "Couldn't reach GitHub. Check your connection and try again."
-        }
-    }
-
-    /// Slug of the first enabled repo the just-entered token can't reach, or nil
-    /// if all are accessible. Only GitHub's access signals (404/401) count as
-    /// inaccessible; a transient network error propagates to the generic catch.
-    private func firstInaccessibleRepo() async throws -> String? {
         let ctx = ModelContext(coordinator.modelContainerForView)
         let repos = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
-        for repo in repos {
-            do {
-                _ = try await client.repository(RepoRef(owner: repo.owner, name: repo.name))
-            } catch let e as GitHubError where e == .repoNotFound || e == .unauthorized || e == .forbidden {
-                return "\(repo.owner)/\(repo.name)"
-            }
+        let refs = repos.map { RepoRef(owner: $0.owner, name: $0.name) }
+        let result = await ConnectionCheck(client: client, token: trimmed).run(repos: refs)
+
+        if let failure = result.items.first(where: { $0.status == .failure }) {
+            problem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+            errorText = failure.message
+            if case .network = result.identityError { return }
+            if case .decoding = result.identityError { return }
+            keychain.delete()
+            return
         }
-        return nil
+
+        persist(result, in: ctx)
+        coordinator.reconnected()
+        dismiss()
+    }
+
+    private func persist(_ result: ConnectionCheckResult, in ctx: ModelContext) {
+        guard let dto = result.viewer else { return }
+        let state = (try? ctx.fetch(FetchDescriptor<ViewerState>()))?.first ?? {
+            let value = ViewerState()
+            ctx.insert(value)
+            return value
+        }()
+        let user = state.viewer ?? User(login: dto.login)
+        user.name = dto.name
+        user.avatarURL = dto.avatar_url
+        if state.viewer == nil { ctx.insert(user) }
+        state.viewer = user
+        state.tokenType = result.metadata.type
+        state.tokenScopes = result.metadata.scopes
+        state.tokenExpirationDate = result.metadata.expiration
+        try? ctx.save()
     }
 }

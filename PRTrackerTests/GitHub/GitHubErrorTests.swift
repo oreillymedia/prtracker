@@ -29,4 +29,11 @@ import Foundation
         #expect(presentation.action?.label == "Authorize")
         #expect(presentation.action?.url == url)
     }
+
+    @Test func permissionGapErrorsSurfacePerRepo() {
+        #expect(GitHubError.forbidden.isPermissionGap)
+        #expect(GitHubError.repoNotFound.isPermissionGap)
+        #expect(GitHubError.ssoRequired(authorizeURL: URL(string: "https://example.com")!).isPermissionGap)
+        #expect(!GitHubError.network(message: "offline").isPermissionGap)
+    }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct UserDTO: Decodable, Equatable {
+nonisolated struct UserDTO: Decodable, Equatable, Sendable {
     let login: String
     let name: String?
     let avatar_url: URL?
@@ -149,6 +149,11 @@ nonisolated struct NotificationDTO: Decodable {
     }
 }
 
-nonisolated struct RepoDTO: Decodable, Equatable {
+nonisolated struct OrganizationDTO: Decodable, Sendable {
+    let login: String?
+}
+
+nonisolated struct RepoDTO: Decodable, Equatable, Sendable {
     let full_name: String
+    let default_branch: String?
 }

@@ -23,6 +23,13 @@ struct GitHubErrorPresentation: Equatable, Sendable {
 }
 
 extension GitHubError {
+    var isPermissionGap: Bool {
+        switch self {
+        case .forbidden, .ssoRequired, .repoNotFound: return true
+        default: return false
+        }
+    }
+
     var userFacing: GitHubErrorPresentation {
         switch self {
         case .unauthorized:

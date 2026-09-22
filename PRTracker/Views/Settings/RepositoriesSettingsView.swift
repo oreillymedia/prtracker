@@ -12,6 +12,7 @@ struct RepositoriesSettingsView: View {
     @Query(sort: [SortDescriptor(\Repo.id)]) private var repos: [Repo]
 
     let coordinator: SyncCoordinator
+    let keychain: Keychain
 
     @State private var selectedRepoID: String?
     @State private var showAddSheet = false
@@ -209,7 +210,12 @@ struct RepositoriesSettingsView: View {
         repoProblem = nil
         defer { isAddingRepo = false }
         do {
-            _ = try await coordinator.clientForView.repository(ref)
+            guard let token = keychain.load() else { throw GitHubError.unauthorized }
+            let result = await ConnectionCheck(client: coordinator.clientForView, token: token).run(repos: [ref])
+            if let failure = result.items.first(where: { $0.status == .failure }) {
+                repoProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+                return
+            }
             ctx.insert(Repo(owner: ref.owner, name: ref.name))
             try? ctx.save()
             newRepo = ""

@@ -21,6 +21,7 @@ enum Endpoints {
     static let base = URL(string: "https://api.github.com")!
 
     static var user: URL { base.appending(path: "/user") }
+    static var organizations: URL { base.appending(path: "/user/orgs") }
 
     static func pulls(_ r: RepoRef, state: String, perPage: Int) -> URL {
         var c = URLComponents(url: base.appending(path: "/repos/\(r.slug)/pulls"), resolvingAgainstBaseURL: false)!
@@ -32,7 +33,13 @@ enum Endpoints {
         ]
         return c.url!
     }
-    static func checkRuns(_ r: RepoRef, ref: String) -> URL { base.appending(path: "/repos/\(r.slug)/commits/\(ref)/check-runs") }
+    static func checkRuns(_ r: RepoRef, ref: String, perPage: Int? = nil) -> URL {
+        let url = base.appending(path: "/repos/\(r.slug)/commits/\(ref)/check-runs")
+        guard let perPage else { return url }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "per_page", value: String(perPage))]
+        return components.url!
+    }
     static var notificationsParticipating: URL {
         var c = URLComponents(url: base.appending(path: "/notifications"), resolvingAgainstBaseURL: false)!
         c.queryItems = [URLQueryItem(name: "participating", value: "true")]

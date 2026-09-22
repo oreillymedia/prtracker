@@ -100,7 +100,9 @@ struct MainView: View {
         VStack(spacing: 0) {
             if coordinator.needsReauth { reauthBanner }
             NavigationSplitView {
-                MailSourceColumn(coordinator: coordinator, onOpenSettings: onOpenSettings)
+                MailSourceColumn(coordinator: coordinator,
+                                 onOpenSettings: onOpenSettings,
+                                 onOpenAccountSettings: openAccountSettings)
                     .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
             } detail: {
                 if let prID = appState.selectedPRID, let pr = prs.first(where: { $0.id == prID }) {
@@ -156,6 +158,11 @@ struct MainView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(Tokens.changes)
+    }
+
+    private func openAccountSettings() {
+        UserDefaults.standard.set(SettingsTab.account.rawValue, forKey: SettingsTab.storageKey)
+        onOpenSettings()
     }
 
     private func presentOnboarding(_ mode: OnboardingModel.Mode) {
