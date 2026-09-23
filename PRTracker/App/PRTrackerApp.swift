@@ -54,6 +54,7 @@ struct PRTrackerApp: App {
         self.dispatcher = d
         self.coordinator.notificationDispatcher = d
         self.coordinator.badgeController = self.badgeController
+        d.badgeController = bc
     }
 
     /// Open the on-disk store, recovering from an unmigratable schema as a last
@@ -108,14 +109,14 @@ struct PRTrackerApp: App {
             }
         }
 
-//        MenuBarExtra {
-//            MenuBarContentView(coordinator: coordinator, controller: badgeController)
-//                .environment(appState)
-//                .modelContainer(container)
-//        } label: {
-//            MenuBarLabel(controller: badgeController)
-//        }
-//        .menuBarExtraStyle(.window)
+        MenuBarExtra {
+            MenuBarContentView(coordinator: coordinator, controller: badgeController)
+                .environment(appState)
+                .modelContainer(container)
+        } label: {
+            MenuBarLabel(controller: badgeController)
+        }
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView(keychain: keychain, client: client, coordinator: coordinator)
