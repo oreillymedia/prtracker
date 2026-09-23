@@ -8,6 +8,9 @@ final class NotificationDispatcher {
     private let auth: NotificationAuthorizing
     private let activity: AppActivityProbing
 
+    /// Set from `PRTrackerApp`; flagged when a sync finds policy-passing activity.
+    var badgeController: BadgeController?
+
     init(modelContainer: ModelContainer, poster: NotificationPoster, auth: NotificationAuthorizing = NotificationAuthorization(), activity: AppActivityProbing = NSAppActivityProbe()) {
         self.modelContainer = modelContainer
         self.poster = poster
@@ -22,7 +25,9 @@ final class NotificationDispatcher {
         guard let repo = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.id == repoTarget })))?.first else { return }
         let level = repo.notificationLevel
         if level == .none { return }
-        if await auth.currentStatus() != .authorized { return }
+        // Permission gates banners only. The menu-bar notice and the dedup log
+        // don't need it — see plan decision 2.
+        let canPost = await auth.currentStatus() == .authorized
         if await MainActor.run(body: { activity.isFrontmost() }) { return }
         guard let viewerLogin = vs.viewer?.login else { return }
 
@@ -56,7 +61,8 @@ final class NotificationDispatcher {
                 ? specificContent(filtered[0], pr: pr)
                 : aggregateContent(count: filtered.count, pr: pr)
 
-            await poster.post(content)
+            await MainActor.run { badgeController?.noteNewActivity() }
+            if canPost { await poster.post(content) }
 
             for c in filtered {
                 ctx.insert(NotificationLog(id: idFor(c),
