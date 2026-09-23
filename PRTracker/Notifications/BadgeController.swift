@@ -17,6 +17,10 @@ final class BadgeController {
     var menuBarEnabled: Bool = true
     var dockEnabled: Bool = true
 
+    /// True from the moment a sync finds policy-passing activity until the user
+    /// looks: the popover opens or the app becomes active. Drives the menu-bar icon.
+    var hasNewActivity: Bool = false
+
     @ObservationIgnored private let dock: DockBadgeSetting
 
     init(dock: DockBadgeSetting = NSAppDockBadge()) {
@@ -28,9 +32,16 @@ final class BadgeController {
         ) { [weak self] _ in
             self?.dock.setLabel(nil)
         }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.clearNewActivity()
+        }
     }
 
-    var menuBarShowsDot: Bool { menuBarEnabled && attentionCount > 0 }
+    var menuBarShowsDot: Bool { menuBarEnabled && hasNewActivity }
+
+    func noteNewActivity() { hasNewActivity = true }
+    func clearNewActivity() { hasNewActivity = false }
+
     var dockShowsBadge: Bool { dockEnabled && attentionCount > 0 }
 
     func apply() {
