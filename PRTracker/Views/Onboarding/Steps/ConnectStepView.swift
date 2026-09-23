@@ -1,19 +1,30 @@
 import SwiftUI
 
 struct ConnectStepView: View {
+    @Environment(\.openURL) private var openURL
     @Bindable var model: OnboardingModel
     var onValidate: () -> Void
-
-    private let tokenURL = URL(string: "https://github.com/settings/tokens/new?scopes=repo&description=PRTracker")!
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Connect your GitHub account").font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.text)
-            Text("PR Tracker needs a personal access token with the **repo** scope to read your pull requests. Fine-grained tokens with read access to pull requests also work.")
+            Text("Create a classic personal access token with the **repo** scope, then authorize it for the oreillymedia organization.")
                 .font(.system(size: 12.5)).foregroundStyle(Tokens.textMuted).fixedSize(horizontal: false, vertical: true)
-            Link(destination: tokenURL) {
+            Link(destination: GitHubTokenGuide.tokenURL) {
                 HStack(spacing: 5) { Image(systemName: "arrow.up.forward.square"); Text("Create a token on GitHub") }
                     .font(.system(size: 12.5, weight: .medium))
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(Array(GitHubTokenGuide.checklist.enumerated()), id: \.offset) { index, item in
+                    SwiftUI.Label(item, systemImage: "\(index + 1).circle")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Tokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(GitHubTokenGuide.fineGrainedNote)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Tokens.textFaint)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let v = model.viewer, let user = model.displayUser {
@@ -39,8 +50,29 @@ struct ConnectStepView: View {
                 Button("Validate") { onValidate() }
                     .disabled(model.token.isEmpty || model.isValidating)
             }
-            if let err = model.connectError {
-                Text(err).font(.system(size: 11, weight: .medium)).foregroundStyle(Tokens.changes)
+            if let problem = model.connectProblem {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(problem.title).font(.system(size: 11, weight: .semibold))
+                    Text(problem.detail).font(.system(size: 11))
+                    if let action = problem.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.changes)
+            }
+            if let warning = model.connectionResult?.items.first(where: { $0.status == .warning }) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(warning.title).font(.system(size: 11, weight: .semibold))
+                    Text(warning.message).font(.system(size: 11))
+                    if let action = warning.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.pending)
             }
             Spacer()
         }

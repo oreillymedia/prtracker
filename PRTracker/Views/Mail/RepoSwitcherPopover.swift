@@ -59,9 +59,17 @@ struct RepoSwitcherPopover: View {
                 .background(repo.isEnabled ? Tokens.accent : Tokens.hairline,
                             in: RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 1) {
-                Text(repo.id)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Tokens.text).lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(repo.id)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Tokens.text).lineLimit(1)
+                    if repo.lastSyncErrorRaw != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Tokens.changes)
+                            .help("Repository sync needs attention")
+                    }
+                }
                 Text(notificationText(repo))
                     .font(.system(size: 11.5))
                     .foregroundStyle(Tokens.textMuted)

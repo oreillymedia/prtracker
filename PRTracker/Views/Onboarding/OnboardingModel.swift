@@ -41,13 +41,17 @@ final class OnboardingModel {
     // Connect
     var token: String = ""
     var viewer: UserDTO?
+    var tokenMetadata: GitHubTokenMetadata?
+    var connectionResult: ConnectionCheckResult?
     var connectError: String?
+    var connectProblem: GitHubErrorPresentation?
     var isValidating = false
 
     // Repositories
     var pending: [PendingRepo] = []
     var newRepo: String = ""
     var addError: String?
+    var addProblem: GitHubErrorPresentation?
     var isCheckingRepo = false
 
     // Notifications
@@ -69,9 +73,11 @@ final class OnboardingModel {
         }
     }
 
-    func applyValidatedViewer(_ dto: UserDTO) {
+    func applyValidatedViewer(_ dto: UserDTO, tokenMetadata: GitHubTokenMetadata? = nil) {
         viewer = dto
+        self.tokenMetadata = tokenMetadata
         connectError = nil
+        connectProblem = nil
     }
 
     /// Add a verified repo. Returns false if the string is unparseable or a duplicate.
@@ -104,6 +110,11 @@ final class OnboardingModel {
                 let v = ViewerState(); ctx.insert(v); return v
             }()
             vs.viewer = user
+            if let tokenMetadata {
+                vs.tokenType = tokenMetadata.type
+                vs.tokenScopes = tokenMetadata.scopes
+                vs.tokenExpirationDate = tokenMetadata.expiration
+            }
         }
 
         let current = (try? ctx.fetch(FetchDescriptor<Repo>())) ?? []

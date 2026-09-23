@@ -1,5 +1,10 @@
 import Foundation
 
+struct GitHubResponse<Value> {
+    let value: Value
+    let headers: [String: String]
+}
+
 actor GitHubClient {
     private let session: URLSession
     private let tokenProvider: @Sendable () -> String?
@@ -46,6 +51,10 @@ actor GitHubClient {
     }
 
     private func send<T: Decodable>(_ url: URL, as: T.Type, conditional: Bool = false) async throws -> T {
+        try await sendResponse(url, as: T.self, conditional: conditional).value
+    }
+
+    private func sendResponse<T: Decodable>(_ url: URL, as: T.Type, conditional: Bool = false) async throws -> GitHubResponse<T> {
         let req = request(url, conditional: conditional)
         let (data, resp): (Data, URLResponse)
         do { (data, resp) = try await session.data(for: req) }
@@ -55,11 +64,17 @@ actor GitHubClient {
         case 304: throw GitHubError.notModified
         case 200..<300:
             if conditional { etagSink(url, http.value(forHTTPHeaderField: "ETag")) }
-            do { return try Self.isoDecoder.decode(T.self, from: data) }
-            catch { throw GitHubError.decoding(message: String(describing: error)) }
+            do {
+                let value = try Self.isoDecoder.decode(T.self, from: data)
+                return GitHubResponse(value: value, headers: Self.headers(from: http))
+            } catch { throw GitHubError.decoding(message: String(describing: error)) }
         case 401: throw GitHubError.unauthorized
         case 404: throw GitHubError.repoNotFound
         case 403:
+            if let ssoHeader = http.value(forHTTPHeaderField: "X-GitHub-SSO"),
+               let authorizeURL = Self.ssoAuthorizeURL(from: ssoHeader) {
+                throw GitHubError.ssoRequired(authorizeURL: authorizeURL)
+            }
             if http.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0",
                let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset"),
                let resetEpoch = TimeInterval(resetStr) {
@@ -73,8 +88,29 @@ actor GitHubClient {
         }
     }
 
+    private static func headers(from response: HTTPURLResponse) -> [String: String] {
+        response.allHeaderFields.reduce(into: [String: String]()) { result, pair in
+            guard let key = pair.key as? String, let value = pair.value as? String else { return }
+            result[key] = value
+        }
+    }
+
+    private static func ssoAuthorizeURL(from header: String) -> URL? {
+        guard let range = header.range(of: "url=", options: [.caseInsensitive]) else { return nil }
+        let rawURL = header[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(string: rawURL)
+    }
+
     func validate() async throws -> UserDTO {
-        try await send(Endpoints.user, as: UserDTO.self)
+        try await validateWithMetadata().value
+    }
+
+    func validateWithMetadata() async throws -> GitHubResponse<UserDTO> {
+        try await sendResponse(Endpoints.user, as: UserDTO.self)
+    }
+
+    func organizationsWithMetadata() async throws -> GitHubResponse<[OrganizationDTO]> {
+        try await sendResponse(Endpoints.organizations, as: [OrganizationDTO].self)
     }
 }
 
@@ -134,6 +170,18 @@ extension GitHubClient {
     /// Verify a repo exists and is accessible to the token. Throws
     /// `.repoNotFound` (404) or `.unauthorized` (401) otherwise.
     func repository(_ repo: RepoRef) async throws -> RepoDTO {
-        try await send(Endpoints.repo(repo), as: RepoDTO.self)
+        try await repositoryWithMetadata(repo).value
+    }
+
+    func repositoryWithMetadata(_ repo: RepoRef) async throws -> GitHubResponse<RepoDTO> {
+        try await sendResponse(Endpoints.repo(repo), as: RepoDTO.self)
+    }
+
+    func probePullRequests(repo: RepoRef) async throws -> GitHubResponse<[PullRequestDTO]> {
+        try await sendResponse(Endpoints.pulls(repo, state: "open", perPage: 1), as: [PullRequestDTO].self)
+    }
+
+    func probeCheckRuns(repo: RepoRef, ref: String) async throws -> GitHubResponse<CheckRunsResponseDTO> {
+        try await sendResponse(Endpoints.checkRuns(repo, ref: ref, perPage: 1), as: CheckRunsResponseDTO.self)
     }
 }

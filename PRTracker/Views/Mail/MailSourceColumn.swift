@@ -3,9 +3,11 @@ import SwiftData
 
 struct MailSourceColumn: View {
     @Query private var repos: [Repo]
+    @Query private var viewerStates: [ViewerState]
 
     let coordinator: SyncCoordinator
     var onOpenSettings: () -> Void
+    var onOpenAccountSettings: () -> Void
 
     /// Leading edge of the source list's leading icon column (the 24pt TodoRing
     /// in each `MailRowView`, inset by the sidebar list's content margin). The
@@ -47,10 +49,31 @@ struct MailSourceColumn: View {
             if coordinator.isSyncing {
                 ProgressView().controlSize(.small).scaleEffect(0.7)
                 Text("Updating…").microText().foregroundStyle(Tokens.textMuted)
+            } else if let expiration = viewerStates.first?.tokenExpirationDate,
+                      expiration > .now,
+                      expiration.timeIntervalSinceNow <= 7 * 24 * 60 * 60 {
+                let days = max(1, Int(ceil(expiration.timeIntervalSinceNow / (24 * 60 * 60))))
+                Button {
+                    onOpenAccountSettings()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9)).foregroundStyle(Tokens.pending)
+                        Text("Token expires in \(days) days · Reconnect").microText().foregroundStyle(Tokens.pending)
+                    }
+                }
+                .buttonStyle(.plain)
             } else if let err = coordinator.lastSyncError {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 9)).foregroundStyle(Tokens.changes)
-                Text(syncErrorText(err)).microText().foregroundStyle(Tokens.changes)
+                Button {
+                    onOpenAccountSettings()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9)).foregroundStyle(Tokens.changes)
+                        Text(syncErrorText(err)).microText().foregroundStyle(Tokens.changes)
+                    }
+                }
+                .buttonStyle(.plain)
             } else if let last = coordinator.lastSyncAt {
                 RelativeTimeText(date: last, prefix: "Updated ").microText().foregroundStyle(Tokens.textMuted)
             } else {
@@ -64,14 +87,6 @@ struct MailSourceColumn: View {
     }
 
     private func syncErrorText(_ err: GitHubError) -> String {
-        switch err {
-        case .unauthorized:   return "Sync failed — check your token"
-        case .forbidden:      return "Sync failed — token lacks access"
-        case .repoNotFound:   return "Sync failed — repo not found"
-        case .rateLimited:    return "Sync paused — rate limited"
-        case .network:        return "Sync failed — network error"
-        case .decoding:       return "Sync failed — unexpected response"
-        case .notModified:    return "Up to date"
-        }
+        err.userFacing.title
     }
 }

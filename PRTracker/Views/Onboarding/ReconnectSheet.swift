@@ -10,6 +10,7 @@ import SwiftData
 /// is a reconfigure-level action handled by onboarding.
 struct ReconnectSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let keychain: Keychain
     let client: GitHubClient
@@ -18,6 +19,7 @@ struct ReconnectSheet: View {
     @State private var token = ""
     @State private var isValidating = false
     @State private var errorText: String?
+    @State private var problem: GitHubErrorPresentation?
 
     private var trimmed: String { token.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canValidate: Bool { !trimmed.isEmpty && !isValidating }
@@ -28,15 +30,32 @@ struct ReconnectSheet: View {
                 Text("Reconnect to GitHub").font(.system(size: 15, weight: .semibold))
                 Text("Your access token expired or was revoked. Paste a new token with repo access to resume syncing.")
                     .font(.system(size: 12)).foregroundStyle(Tokens.textMuted).fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(GitHubTokenGuide.checklist.enumerated()), id: \.offset) { index, item in
+                        SwiftUI.Label(item, systemImage: "\(index + 1).circle")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(Tokens.textFaint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             SecureField("ghp_… or github_pat_…", text: $token)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { if canValidate { Task { await validate() } } }
-            if let errorText {
-                Text(errorText).font(.system(size: 11)).foregroundStyle(Tokens.changes).fixedSize(horizontal: false, vertical: true)
+            if let problem {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(problem.title).font(.system(size: 11, weight: .semibold))
+                    Text(problem.detail).font(.system(size: 11))
+                    if let action = problem.action {
+                        Button(action.label) { openURL(action.url) }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.link)
+                    }
+                }
+                .foregroundStyle(Tokens.changes)
             }
             HStack {
-                Link("Create a token…", destination: URL(string: "https://github.com/settings/tokens")!).font(.system(size: 11))
+                Link("Create a token…", destination: GitHubTokenGuide.tokenURL).font(.system(size: 11))
                 Spacer()
                 Button("Cancel") { dismiss() }
                 Button {
@@ -55,41 +74,41 @@ struct ReconnectSheet: View {
     private func validate() async {
         isValidating = true; defer { isValidating = false }
         errorText = nil
-        // Save first: the client reads the token from the keychain per request,
-        // so validate() below exercises exactly the credential we're storing.
+        problem = nil
         keychain.save(trimmed)
-        do {
-            _ = try await client.validate()
-            // /user only proves the token authenticates. Verify it can actually
-            // reach the configured repos too — GitHub returns 404 for a private
-            // repo a token can't see, which would otherwise clear the banner and
-            // then resurface as a confusing "repoNotFound" on every load.
-            if let blocked = try await firstInaccessibleRepo() {
-                keychain.delete()
-                errorText = "That token can't access \(blocked). Give it access to that repository and try again."
-                return
-            }
-            coordinator.reconnected()
-            dismiss()
-        } catch {
-            keychain.delete()
-            errorText = "That token was rejected. Check it has repo access and try again."
-        }
-    }
-
-    /// Slug of the first enabled repo the just-entered token can't reach, or nil
-    /// if all are accessible. Only GitHub's access signals (404/401) count as
-    /// inaccessible; a transient network error propagates to the generic catch.
-    private func firstInaccessibleRepo() async throws -> String? {
         let ctx = ModelContext(coordinator.modelContainerForView)
         let repos = (try? ctx.fetch(FetchDescriptor<Repo>(predicate: #Predicate { $0.isEnabled == true }))) ?? []
-        for repo in repos {
-            do {
-                _ = try await client.repository(RepoRef(owner: repo.owner, name: repo.name))
-            } catch let e as GitHubError where e == .repoNotFound || e == .unauthorized || e == .forbidden {
-                return "\(repo.owner)/\(repo.name)"
-            }
+        let refs = repos.map { RepoRef(owner: $0.owner, name: $0.name) }
+        let result = await ConnectionCheck(client: client, token: trimmed).run(repos: refs)
+
+        if let failure = result.items.first(where: { $0.status == .failure }) {
+            problem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+            errorText = failure.message
+            if result.hasTransientFailure { return }
+            keychain.delete()
+            return
         }
-        return nil
+
+        persist(result, in: ctx)
+        coordinator.reconnected()
+        dismiss()
+    }
+
+    private func persist(_ result: ConnectionCheckResult, in ctx: ModelContext) {
+        guard let dto = result.viewer else { return }
+        let state = (try? ctx.fetch(FetchDescriptor<ViewerState>()))?.first ?? {
+            let value = ViewerState()
+            ctx.insert(value)
+            return value
+        }()
+        let user = state.viewer ?? User(login: dto.login)
+        user.name = dto.name
+        user.avatarURL = dto.avatar_url
+        if state.viewer == nil { ctx.insert(user) }
+        state.viewer = user
+        state.tokenType = result.metadata.type
+        state.tokenScopes = result.metadata.scopes
+        state.tokenExpirationDate = result.metadata.expiration
+        try? ctx.save()
     }
 }

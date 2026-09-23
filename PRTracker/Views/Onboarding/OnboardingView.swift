@@ -88,7 +88,7 @@ struct OnboardingView: View {
         if mode == .firstRun {
             coordinator.start()
         } else {
-            Task { await coordinator.refresh() }
+            coordinator.reconnected()
         }
         // Onboarding is always presented as a sheet now (first-run included),
         // so both modes dismiss; MainView shows the configured app behind it.
@@ -96,16 +96,25 @@ struct OnboardingView: View {
     }
 
     private func validateToken() async {
+        let token = GitHubTokenMetadata.normalizedToken(model.token)
+        guard !token.isEmpty else { return }
         model.isValidating = true; defer { model.isValidating = false }
-        keychain.save(model.token)
-        do {
-            let dto = try await client.validate()
-            model.applyValidatedViewer(dto)
-            model.token = ""
-        } catch {
+        model.connectProblem = nil
+        keychain.save(token)
+
+        let result = await ConnectionCheck(client: client, token: token).run(repos: [])
+        model.connectionResult = result
+        if let failure = result.items.first(where: { $0.status == .failure }) {
+            model.connectProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+            model.connectError = failure.message
+            if result.hasTransientFailure { return }
             keychain.delete()
-            model.connectError = "That token was rejected. Check it has repo access and try again."
+            return
         }
+
+        guard let viewer = result.viewer else { return }
+        model.applyValidatedViewer(viewer, tokenMetadata: result.metadata)
+        model.token = ""
     }
 
     private func addRepo() async {
@@ -115,17 +124,24 @@ struct OnboardingView: View {
         }
         model.isCheckingRepo = true; defer { model.isCheckingRepo = false }
         model.addError = nil
+        model.addProblem = nil
         do {
-            _ = try await client.repository(ref)
+            guard let token = keychain.load() else {
+                throw GitHubError.unauthorized
+            }
+            let result = await ConnectionCheck(client: client, token: token).run(repos: [ref])
+            if let failure = result.items.first(where: { $0.status == .failure }) {
+                model.addProblem = GitHubErrorPresentation(title: failure.title, detail: failure.message, action: failure.action)
+                model.addError = failure.message
+                return
+            }
             _ = model.addRepo(model.newRepo)
             model.newRepo = ""
-        } catch GitHubError.repoNotFound {
-            model.addError = "Couldn't find \(ref.slug), or your token can't access it."
-        } catch GitHubError.unauthorized {
-            model.addError = "Your token was rejected. Check it hasn't expired."
-        } catch GitHubError.forbidden {
-            model.addError = "GitHub denied access to \(ref.slug). Your token may lack the required scope, or need SSO authorization for that organization."
+        } catch let error as GitHubError {
+            model.addProblem = error.userFacing
+            model.addError = error.userFacing.detail
         } catch {
+            model.addProblem = GitHubError.network(message: error.localizedDescription).userFacing
             model.addError = "Couldn't verify \(ref.slug). Check your connection and try again."
         }
     }
