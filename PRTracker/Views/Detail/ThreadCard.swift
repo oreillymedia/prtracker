@@ -4,18 +4,22 @@ struct ThreadCard: View {
     let thread: Thread
     let onToggleMessageDone: (ThreadMessage) -> Void
     let onResolveAll: () -> Void
+    let onNoteChanged: (String) -> Void
 
     @State private var collapsed: Bool
+    @State private var noteDraft: String
     @State private var hunkExpanded = false
 
     /// Lines of diff context shown before the "Show N more lines" button.
     private static let hunkPreviewLines = 6
 
-    init(thread: Thread, onToggleMessageDone: @escaping (ThreadMessage) -> Void, onResolveAll: @escaping () -> Void) {
+    init(thread: Thread, onToggleMessageDone: @escaping (ThreadMessage) -> Void, onResolveAll: @escaping () -> Void, onNoteChanged: @escaping (String) -> Void) {
         self.thread = thread
         self.onToggleMessageDone = onToggleMessageDone
         self.onResolveAll = onResolveAll
+        self.onNoteChanged = onNoteChanged
         self._collapsed = State(initialValue: TodoHelpers.isResolved(thread))
+        self._noteDraft = State(initialValue: thread.note)
     }
 
     private var resolved: Bool { TodoHelpers.isResolved(thread) }
@@ -37,6 +41,9 @@ struct ThreadCard: View {
                 ForEach(thread.messages) { msg in
                     ThreadMessageRow(message: msg, onToggleDone: { onToggleMessageDone(msg) })
                 }
+                NoteField(text: $noteDraft)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .onChange(of: noteDraft) { _, new in onNoteChanged(new) }
                 if !resolved && totalNonMine > 0 {
                     resolveFooter
                 }
@@ -73,6 +80,9 @@ struct ThreadCard: View {
                             .overlay(RoundedRectangle(cornerRadius: 5).stroke(Tokens.border, lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
+                }
+                if !thread.note.isEmpty {
+                    Image(systemName: "note.text").font(.system(size: 12)).foregroundStyle(Tokens.textMuted).help("Has a private note")
                 }
                 if let url = thread.githubURL {
                     Link(destination: url) {
