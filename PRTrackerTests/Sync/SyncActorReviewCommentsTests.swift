@@ -71,6 +71,21 @@ import SwiftData
         #expect(c2.isSeen == true)
     }
 
+    @Test func upsertPreservesNote() async throws {
+        let (container, _, _) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertReviewComments(prID: "PR_5107", fromDTOs: [sampleDTO()])
+        let ctx = ModelContext(container)
+        let c = try ctx.fetch(FetchDescriptor<ReviewComment>()).first!
+        c.note = "ask about retries"
+        try ctx.save()
+        try await actor.upsertReviewComments(prID: "PR_5107", fromDTOs: [sampleDTO(body: "Edited")])
+        let ctx2 = ModelContext(container)
+        let c2 = try ctx2.fetch(FetchDescriptor<ReviewComment>()).first!
+        #expect(c2.note == "ask about retries")
+        #expect(c2.body == "Edited")
+    }
+
     @Test func upsertPurgesStale() async throws {
         let (container, _, _) = try setup()
         let actor = SyncActor(modelContainer: container)

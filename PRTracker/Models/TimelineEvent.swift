@@ -21,6 +21,9 @@ final class TimelineEvent {
     /// Local-only — never overwritten by sync. True when the user has marked
     /// this comment-style event as addressed. Only meaningful for `type == .comment`.
     var isDone: Bool = false
+    /// Local-only — never sent to GitHub, never overwritten by sync. Free-text
+    /// private note the user attached in the app.
+    var note: String = ""
 
     var pullRequest: PullRequest
 

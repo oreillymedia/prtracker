@@ -38,6 +38,9 @@ final class PullRequest {
     /// When the app last successfully fetched this PR's data (sync or detail
     /// refresh). Distinct from `updatedAt`, which is GitHub's PR-activity time.
     var lastFetchedAt: Date?
+    /// Local-only — never sent to GitHub, never overwritten by sync. Free-text
+    /// private note the user attached in the app.
+    var note: String = ""
 
     /// Semantically: the most recent moment the user selected this PR's row.
     /// Backed by the same column as `lastReadAt` to avoid a SwiftData
