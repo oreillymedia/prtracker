@@ -26,7 +26,8 @@ struct ThreadsView: View {
                             ThreadCard(
                                 thread: thread,
                                 onToggleMessageDone: { msg in toggle(message: msg) },
-                                onResolveAll: { resolveAll(thread) })
+                                onResolveAll: { resolveAll(thread) },
+                                onNoteChanged: { setNote($0, for: thread) })
                         }
                     }
                 }
@@ -39,7 +40,8 @@ struct ThreadsView: View {
                             ThreadCard(
                                 thread: thread,
                                 onToggleMessageDone: { msg in toggle(message: msg) },
-                                onResolveAll: { resolveAll(thread) })
+                                onResolveAll: { resolveAll(thread) },
+                                onNoteChanged: { setNote($0, for: thread) })
                         }
                     }
                 }
@@ -118,6 +120,16 @@ struct ThreadsView: View {
             if let c = pr.reviewComments.first(where: { $0.id == id }) {
                 c.isDone.toggle()
             }
+        }
+        try? ctx.save()
+    }
+
+    private func setNote(_ text: String, for thread: Thread) {
+        // ponytail: per-keystroke save; debounce if typing ever stutters
+        switch thread.messages.first?.underlying {
+        case .timelineEvent(let id): pr.timeline.first { $0.id == id }?.note = text
+        case .reviewComment(let id): pr.reviewComments.first { $0.id == id }?.note = text
+        case nil: return
         }
         try? ctx.save()
     }

@@ -23,9 +23,11 @@ struct Thread: Identifiable, Equatable {
     /// Direct link to this discussion on GitHub. Nil only if we couldn't
     /// construct an anchor (e.g. legacy row with no numeric DB id yet).
     let githubURL: URL?
+    /// Private note on the thread's root row — `messages.first?.underlying` is the row to write back to.
+    let note: String
 
     init(id: String, kind: ThreadKind, location: String, kindLabel: String?,
-         diffHunk: String? = nil, messages: [ThreadMessage], githubURL: URL? = nil) {
+         diffHunk: String? = nil, messages: [ThreadMessage], githubURL: URL? = nil, note: String = "") {
         self.id = id
         self.kind = kind
         self.location = location
@@ -33,6 +35,7 @@ struct Thread: Identifiable, Equatable {
         self.diffHunk = diffHunk
         self.messages = messages
         self.githubURL = githubURL
+        self.note = note
     }
 }
 
@@ -77,7 +80,7 @@ enum TodoHelpers {
                 ?? URL(string: prURL)
             out.append(Thread(id: "te_\(e.id)", kind: .prComment,
                               location: "Discussion", kindLabel: nil,
-                              messages: [msg], githubURL: url))
+                              messages: [msg], githubURL: url, note: e.note))
         }
 
         // Review-summary threads: the message attached to an Approve /
@@ -96,7 +99,7 @@ enum TodoHelpers {
                 ?? URL(string: prURL)
             out.append(Thread(id: "rv_\(e.id)", kind: .prComment,
                               location: "Discussion", kindLabel: kindLabel,
-                              messages: [msg], githubURL: url))
+                              messages: [msg], githubURL: url, note: e.note))
         }
 
         // Review-comment threads: group by parent review id + chain replies.
@@ -116,7 +119,7 @@ enum TodoHelpers {
                 ?? URL(string: prURL)
             out.append(Thread(id: "rc_\(root.id)", kind: .reviewComment,
                               location: location, kindLabel: kindLabel,
-                              diffHunk: hunk, messages: messages, githubURL: url))
+                              diffHunk: hunk, messages: messages, githubURL: url, note: root.note))
         }
 
         return out.sorted { ($0.messages.last?.createdAt ?? .distantPast) > ($1.messages.last?.createdAt ?? .distantPast) }

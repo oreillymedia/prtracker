@@ -70,6 +70,49 @@ import SwiftData
         #expect(events[0].body == "hi (edited)")
     }
 
+    @Test func upsertPreservesNoteOnExistingTimelineEvent() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        try await actor.upsertTimeline(prID: "PR_5107", items: [
+            TimelineItemDTO(event: "commented", id: 1, node_id: "TE_1",
+                            actor: UserDTO(login: "iris", name: nil, avatar_url: nil),
+                            created_at: Date(timeIntervalSince1970: 1700_000_000),
+                            body: "hi", sha: nil, state: nil)
+        ])
+        let ctx = ModelContext(container)
+        let event = try ctx.fetch(FetchDescriptor<TimelineEvent>()).first!
+        event.note = "reply after standup"
+        try ctx.save()
+        try await actor.upsertTimeline(prID: "PR_5107", items: [
+            TimelineItemDTO(event: "commented", id: 1, node_id: "TE_1",
+                            actor: UserDTO(login: "iris", name: nil, avatar_url: nil),
+                            created_at: Date(timeIntervalSince1970: 1700_000_000),
+                            body: "hi (edited)", sha: nil, state: nil)
+        ])
+        let ctx2 = ModelContext(container)
+        let events = try ctx2.fetch(FetchDescriptor<TimelineEvent>())
+        #expect(events.count == 1)
+        #expect(events[0].note == "reply after standup")
+        #expect(events[0].body == "hi (edited)")
+    }
+
+    @Test func upsertPreservesNoteOnExistingPR() async throws {
+        let (container, repo) = try setup()
+        let actor = SyncActor(modelContainer: container)
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        let ctx = ModelContext(container)
+        let pr = try ctx.fetch(FetchDescriptor<PullRequest>()).first!
+        pr.note = "needs a design doc"
+        try ctx.save()
+        try await actor.upsertPullRequests([samplePullDTO()], inRepoID: repo.id)
+        try await actor.updatePRStatistics(prID: "PR_5107", dto: samplePullDTO())
+        let ctx2 = ModelContext(container)
+        let prs = try ctx2.fetch(FetchDescriptor<PullRequest>())
+        #expect(prs.count == 1)
+        #expect(prs[0].note == "needs a design doc")
+    }
+
     @Test func openPRMissingFromResponseIsClosed() async throws {
         let (container, repo) = try setup()
         let actor = SyncActor(modelContainer: container)

@@ -18,39 +18,41 @@ import Testing
         #expect(dock.label == nil)
     }
 
-    @Test func bothEnabledWithAttentionShowsBoth() {
+    @Test func attentionShowsDockBadge() {
         let dock = FakeDock()
         let c = BadgeController(dock: dock)
-        c.menuBarEnabled = true
         c.dockEnabled = true
         c.attentionCount = 3
         c.apply()
-        #expect(c.menuBarShowsDot == true)
         #expect(dock.label == "●")
     }
 
     @Test func togglingDockOffClearsLabel() {
         let dock = FakeDock()
         let c = BadgeController(dock: dock)
-        c.menuBarEnabled = true
         c.dockEnabled = true
         c.attentionCount = 3
         c.apply()
         c.dockEnabled = false
         c.apply()
         #expect(dock.label == nil)
-        #expect(c.menuBarShowsDot == true)
     }
 
-    @Test func togglingMenuBarOffHidesDot() {
-        let dock = FakeDock()
-        let c = BadgeController(dock: dock)
+    @Test func newActivityShowsMenuBarDot() {
+        let c = BadgeController(dock: FakeDock())
         c.menuBarEnabled = true
-        c.dockEnabled = true
-        c.attentionCount = 3
-        c.menuBarEnabled = false
-        c.apply()
         #expect(c.menuBarShowsDot == false)
-        #expect(dock.label == "●")
+        c.noteNewActivity()
+        #expect(c.menuBarShowsDot == true)
+        c.menuBarEnabled = false
+        #expect(c.menuBarShowsDot == false)
+    }
+
+    @Test func clearNewActivityHidesDot() {
+        let c = BadgeController(dock: FakeDock())
+        c.menuBarEnabled = true
+        c.noteNewActivity()
+        c.clearNewActivity()
+        #expect(c.menuBarShowsDot == false)
     }
 }

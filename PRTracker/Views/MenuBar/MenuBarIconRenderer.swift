@@ -12,7 +12,7 @@ enum MenuBarIconRenderer {
         NSColor(Tokens.accent).setFill()
         NSBezierPath(ovalIn: dot).fill()
         composite.unlockFocus()
-        composite.isTemplate = false
+        composite.isTemplate = true
         return composite
     }
 }

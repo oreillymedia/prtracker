@@ -1,13 +1,19 @@
 import SwiftUI
+import SwiftData
 
 struct DetailRightRail: View {
-    let pr: PullRequest
+    @Bindable var pr: PullRequest
+    @Environment(\.modelContext) private var ctx
 
     @State private var showCIDetails: Bool = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                section("Notes") {
+                    NoteField(text: $pr.note)
+                        .onChange(of: pr.note) { _, _ in try? ctx.save() }
+                }
                 section("Last activity") {
                     RelativeTimeText(date: pr.lastActivityAt)
                         .font(.system(size: 12))

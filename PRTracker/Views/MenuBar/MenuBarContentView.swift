@@ -67,6 +67,7 @@ struct MenuBarContentView: View {
             controller.attentionCount = (buckets[.attention] ?? []).count
             controller.apply()
         }
+        .onAppear { controller.clearNewActivity() }
     }
 
     // MARK: - Compressed PR row

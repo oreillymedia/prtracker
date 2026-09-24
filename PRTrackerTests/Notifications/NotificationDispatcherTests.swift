@@ -91,6 +91,81 @@ import UserNotifications
         #expect(logs.contains(where: { $0.id == "comment_IC_1" }))
     }
 
+    @Test func newActivityFlagsBadge() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_42", number: 42, title: "Add login",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        ctx.insert(TimelineEvent(id: "IC_1", type: .comment, at: .now,
+                                 pullRequest: pr, actor: author, body: "Looks good"))
+        try ctx.save()
+
+        let badge = BadgeController(dock: BadgeControllerTests.FakeDock())
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: CapturingPoster(),
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        dispatcher.badgeController = badge
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(badge.hasNewActivity == true)
+    }
+
+    @Test func authDeniedStillFlagsBadgeAndWritesLogs() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_42", number: 42, title: "Add login",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        ctx.insert(TimelineEvent(id: "IC_1", type: .comment, at: .now,
+                                 pullRequest: pr, actor: author, body: "Looks good"))
+        try ctx.save()
+
+        let poster = CapturingPoster()
+        let badge = BadgeController(dock: BadgeControllerTests.FakeDock())
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: poster,
+                                                auth: StubAuth(status: .denied),
+                                                activity: StubActivityProbe(frontmost: false))
+        dispatcher.badgeController = badge
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(poster.posted.isEmpty)
+        #expect(badge.hasNewActivity == true)
+        let logs = try ctx.fetch(FetchDescriptor<NotificationLog>())
+        #expect(logs.count == 4)
+        #expect(logs.contains(where: { $0.id == "comment_IC_1" }))
+    }
+
+    @Test func noNewActivityLeavesBadgeUntouched() async throws {
+        let (container, repo, _) = try setup(level: .everything)
+        let ctx = ModelContext(container)
+        let author = User(login: "iris")
+        ctx.insert(author)
+        let pr = PullRequest(id: "PR_42", number: 42, title: "Add login",
+                             state: .open, branchHead: "h", branchBase: "main", headSha: "abc",
+                             openedAt: .now, updatedAt: .now, author: author, repo: repo)
+        ctx.insert(pr)
+        seedBaseline(for: pr, ctx: ctx)
+        try ctx.save()
+
+        let badge = BadgeController(dock: BadgeControllerTests.FakeDock())
+        let dispatcher = NotificationDispatcher(modelContainer: container, poster: CapturingPoster(),
+                                                auth: StubAuth(status: .authorized),
+                                                activity: StubActivityProbe(frontmost: false))
+        dispatcher.badgeController = badge
+        await dispatcher.process(repoID: repo.id)
+
+        #expect(badge.hasNewActivity == false)
+    }
+
     @Test func idempotentReprocessing() async throws {
         let (container, repo, _) = try setup(level: .everything)
         let ctx = ModelContext(container)

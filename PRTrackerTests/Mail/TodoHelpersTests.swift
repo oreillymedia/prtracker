@@ -177,6 +177,16 @@ import SwiftData
 
     // MARK: - Thread derivation
 
+    @Test func threads_carryRootNote() throws {
+        let (ctx, pr, viewer) = try makePR()
+        let root = makeReviewComment(in: pr, ctx: ctx, id: "rc1", author: viewer)
+        root.note = "follow up Monday"
+        _ = makeReviewComment(in: pr, ctx: ctx, id: "rc2", author: viewer, inReplyTo: "rc1")
+        try ctx.save()
+        let t = TodoHelpers.threads(for: pr, viewerLogin: "alex", lastSeenAt: nil).first { $0.id == "rc_rc1" }
+        #expect(t?.note == "follow up Monday")
+    }
+
     @Test func threads_buildsReviewCommentChain() throws {
         let (ctx, pr, viewer) = try makePR()
         let other = User(login: "reviewer", name: nil, avatarURL: nil); ctx.insert(other)

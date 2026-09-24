@@ -21,6 +21,9 @@ final class ReviewComment {
     /// Local-only — never overwritten by sync. True when the user has marked
     /// this code-comment message as addressed.
     var isDone: Bool = false
+    /// Local-only — never sent to GitHub, never overwritten by sync. Free-text
+    /// private note the user attached in the app.
+    var note: String = ""
     var pullRequest: PullRequest
 
     init(id: String, parentReviewIntegerID: Int?, inReplyToID: String?, author: User,

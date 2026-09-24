@@ -11,9 +11,12 @@ struct ConnectStepView: View {
             Text("Create a classic personal access token with the **repo** scope, then authorize it for the oreillymedia organization.")
                 .font(.system(size: 12.5)).foregroundStyle(Tokens.textMuted).fixedSize(horizontal: false, vertical: true)
             Link(destination: GitHubTokenGuide.tokenURL) {
-                HStack(spacing: 5) { Image(systemName: "arrow.up.forward.square"); Text("Create a token on GitHub") }
+                HStack(spacing: 5) { Image(systemName: "arrow.up.forward.square"); Text("Create token") }
                     .font(.system(size: 12.5, weight: .medium))
             }
+            Text("Or, follow these steps:")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(Tokens.textMuted)
             VStack(alignment: .leading, spacing: 5) {
                 ForEach(Array(GitHubTokenGuide.checklist.enumerated()), id: \.offset) { index, item in
                     SwiftUI.Label(item, systemImage: "\(index + 1).circle")
