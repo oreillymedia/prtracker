@@ -3,6 +3,15 @@ import SwiftUI
 struct ThreadMessageRow: View {
     let message: ThreadMessage
     let onToggleDone: () -> Void
+    let isCollapsed: Bool
+
+    static func showsBody(isCollapsed: Bool) -> Bool { !isCollapsed }
+
+    init(message: ThreadMessage, onToggleDone: @escaping () -> Void, isCollapsed: Bool = false) {
+        self.message = message
+        self.onToggleDone = onToggleDone
+        self.isCollapsed = isCollapsed
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -10,7 +19,9 @@ struct ThreadMessageRow: View {
             AvatarView(user: message.actor, size: 22)
             VStack(alignment: .leading, spacing: 4) {
                 headerLine
-                MarkdownText(raw: message.body)
+                if Self.showsBody(isCollapsed: isCollapsed) {
+                    MarkdownText(raw: message.body)
+                }
             }
         }
         .padding(.horizontal, 12)

@@ -7,6 +7,7 @@ struct ThreadCard: View {
     let onNoteChanged: (String) -> Void
 
     @State private var collapsed: Bool
+    @State private var commentsCollapsed = false
     @State private var noteDraft: String
     @State private var hunkExpanded = false
 
@@ -39,7 +40,7 @@ struct ThreadCard: View {
                         .padding(.top, 10)
                 }
                 ForEach(thread.messages) { msg in
-                    ThreadMessageRow(message: msg, onToggleDone: { onToggleMessageDone(msg) })
+                    ThreadMessageRow(message: msg, onToggleDone: { onToggleMessageDone(msg) }, isCollapsed: commentsCollapsed)
                 }
                 NoteField(text: $noteDraft)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -80,6 +81,16 @@ struct ThreadCard: View {
                             .overlay(RoundedRectangle(cornerRadius: 5).stroke(Tokens.border, lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
+                }
+                if !thread.messages.isEmpty {
+                    Button { commentsCollapsed.toggle() } label: {
+                        Image(systemName: commentsCollapsed ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Tokens.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(commentsCollapsed ? "Expand all comments" : "Collapse all comments")
+                    .help(commentsCollapsed ? "Expand all comments" : "Collapse all comments")
                 }
                 if !thread.note.isEmpty {
                     Image(systemName: "note.text").font(.system(size: 12)).foregroundStyle(Tokens.textMuted).help("Has a private note")
